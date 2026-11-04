@@ -8,9 +8,9 @@
 | 1 · Brand + UI | schema, генератор всех native identities/assets, Flutter UI, admin shell, RU/KK | Два тестовых бренда собираются из одного кода; визуальные/доступность проверки |
 | 2 · Identity + Catalog | OTP adapter, sessions, роли, каталог, media, seed | Серверные права, лимиты, OpenAPI, integration tests |
 | 3 · Checkout | zones/schedules, quote, promos, order snapshots, idempotency | Конкурентные запросы не дублируют заказ и не превышают capacity |
-| 4 · Operations | Admin order queue, state transitions, push/outbox, история | Сквозной mock/cash заказ от приложения до delivered, reconnect корректен |
+| 4 · Operations | Admin order queue, кухня/диспетчер, web-кабинет курьера, state transitions, push/outbox, история | Сквозной mock/cash заказ от приложения до delivered/completed, reconnect корректен |
 | 5 · Payments | Аудит исходника Kaspi, approved adapter, verification, reconciliation/refunds | Sandbox сценарии и доказательства, fail-closed startup, отдельный допуск live |
-| 6 · Hardening | Load/security/accessibility, backup restore, metrics | SPEC §16, устранены критические замечания |
+| 6 · Hardening | Load/security/accessibility, backup restore, metrics | SPEC §17–19: A01–A24, D01–D08, устранены критические замечания |
 | 7 · Client release kit | Onboarding, signing environment, metadata, screenshots, staging build | Передача клиенту и ручное разрешение публикации; магазины не вызываются автоматически |
 
 ## Первый запрос к Codex
@@ -18,3 +18,6 @@
 
 ## Минимальный Definition of Done для PR
 Воспроизводимые команды, тестируемый результат, миграции и rollback considerations при изменении данных, обновлённые контракты/документация, отсутствие секретов, точное описание проверок. Заглушка должна быть явно обозначена и не имитировать успешную реальную операцию.
+
+## Приоритет единого ТЗ v1.1
+Нормативный полный объём — SPEC_RU.md. Сохраняются Next.js, /v1 и JSON brand config. Этапы этой таблицы — укрупнённые work packages; порядок и release gates сверять с §18–19 ТЗ. ASAP и полный возврат обязательны; слоты и частичный возврат — последующий этап §23. RPO ≤1 час требует WAL/PITR и restore drill. Ни один из A/D критериев пока не считается пройденным на основании starter tests.
