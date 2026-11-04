@@ -1,0 +1,13 @@
+name: food_delivery_starter
+description: White-label Flutter source starter; not a production app.
+publish_to: none
+version: 0.1.0+1
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/brand.json

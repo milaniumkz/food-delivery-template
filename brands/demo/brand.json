@@ -1,0 +1,16 @@
+{
+  "id": "demo",
+  "displayName": "TAMAK",
+  "applicationId": "com.example.tamak",
+  "apiBaseUrl": "https://api.example.invalid",
+  "currency": "KZT",
+  "locales": [
+    "ru",
+    "kk"
+  ],
+  "primaryColor": "#D94C2B",
+  "surfaceColor": "#FFF9F2",
+  "textColor": "#22271F",
+  "logoAsset": "assets/logo.svg",
+  "supportEmail": "support@example.invalid"
+}
