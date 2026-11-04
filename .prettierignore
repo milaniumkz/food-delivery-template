@@ -1,0 +1,7 @@
+node_modules
+.next
+dist
+.generated
+pnpm-lock.yaml
+apps/admin/next-env.d.ts
+packages/contracts/openapi.json

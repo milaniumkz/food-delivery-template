@@ -1,19 +1,19 @@
-import {readFileSync,mkdirSync,writeFileSync} from 'node:fs';
-import {resolve,dirname} from 'node:path';
-const path=resolve(process.argv[2]??'brands/demo/brand.json');
-const b=JSON.parse(readFileSync(path,'utf8'));
-const fields=['id','displayName','applicationId','apiBaseUrl','currency','locales','primaryColor','surfaceColor','textColor','logoAsset','supportEmail'];
-if(Object.keys(b).some(k=>!fields.includes(k))) throw Error('Unknown config field: public config cannot contain secrets');
-for(const k of fields) if(b[k]===undefined) throw Error(`Missing ${k}`);
-if(!/^[a-z][a-z0-9-]{1,39}$/.test(b.id)) throw Error('Invalid brand id');
-if(typeof b.displayName!=='string'||!b.displayName.trim()||b.displayName.length>40) throw Error('Invalid display name');
-if(!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){2,}$/.test(b.applicationId)) throw Error('Invalid application id');
-if(new URL(b.apiBaseUrl).protocol!=='https:') throw Error('HTTPS required');
-if(b.currency!=='KZT'||!Array.isArray(b.locales)||!b.locales.length||b.locales.some(x=>!['ru','kk'].includes(x))) throw Error('Invalid locale/currency');
-for(const k of ['primaryColor','surfaceColor','textColor']) if(!/^#[0-9A-Fa-f]{6}$/.test(b[k])) throw Error(`Invalid ${k}`);
-if(typeof b.logoAsset!=='string'||!/^assets\/[a-zA-Z0-9_/-]+\.svg$/.test(b.logoAsset)||b.logoAsset.includes('..')) throw Error('Invalid logo path');
-readFileSync(resolve(dirname(path),b.logoAsset));
-if(typeof b.supportEmail!=='string'||!/^([^\s@]+)@([^\s@]+)\.([^\s@]+)$/.test(b.supportEmail)) throw Error('Invalid support email');
-const out=resolve('.generated',b.id);mkdirSync(out,{recursive:true});
-writeFileSync(resolve(out,'brand.json'),JSON.stringify(b,null,2)+'\n');
-console.log(`Validated public brand: ${b.id}; output ${out}/brand.json`);
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { readBrand } from "../packages/config/index.mjs";
+const args = process.argv.slice(2);
+const path = args.find((a) => !a.startsWith("--")) ?? "brands/demo/brand.json";
+const brand = readBrand(resolve(path), {
+  production: args.includes("--production"),
+});
+const out = resolve(".generated", brand.id);
+if (!args.includes("--dry-run")) {
+  mkdirSync(out, { recursive: true });
+  writeFileSync(
+    resolve(out, "brand.json"),
+    JSON.stringify(brand, null, 2) + "\n",
+  );
+}
+console.log(
+  `Validated public brand: ${brand.id}${args.includes("--dry-run") ? "; dry run" : "; output " + out + "/brand.json"}`,
+);

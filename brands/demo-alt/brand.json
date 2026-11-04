@@ -1,0 +1,20 @@
+{
+  "id": "demo-alt",
+  "displayName": "DÄM",
+  "applicationId": "com.example.dam",
+  "apiBaseUrl": "https://api.example.invalid",
+  "currency": "KZT",
+  "locales": [
+    "ru",
+    "kk"
+  ],
+  "primaryColor": "#24553F",
+  "surfaceColor": "#F5FAF7",
+  "textColor": "#1B3024",
+  "logoAsset": "assets/logo.svg",
+  "supportEmail": "support@example.invalid",
+  "schemaVersion": 1,
+  "defaultLocale": "ru",
+  "timeZone": "Asia/Almaty",
+  "onPrimary": "#FFFFFF"
+}

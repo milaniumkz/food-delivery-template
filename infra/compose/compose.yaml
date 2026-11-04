@@ -1,0 +1,33 @@
+name: food-delivery-local
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    environment:
+      POSTGRES_USER: food_local
+      POSTGRES_DB: food_local
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run tools/bootstrap.mjs first}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U food_local -d food_local"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:8.2.2-bookworm
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:
+  redis-data:

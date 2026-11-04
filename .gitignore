@@ -20,3 +20,9 @@ GoogleService-Info.plist
 brands/*/private/
 .generated/
 .DS_Store
+
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+/.local/

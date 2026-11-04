@@ -1,14 +1,31 @@
-# Проверки starter · 04.11.2026
+# Проверки
 
-- Node.js v24.10.0: `node --test apps/api/test/*.test.mjs` — 4/4 passed: идемпотентность и конфликт суммы, неверные суммы, переход mock/изоляция снимка, запрет внешних уведомлений и Kaspi.
-- `node tools/brand.mjs brands/demo/brand.json` — passed, публичная конфигурация сгенерирована. `.generated/` исключена из git.
-- JavaScript из design/index.html извлечён и проверен `node --check` — passed.
-- `git diff --cached --check` — passed.
-- Просмотрен список всех отслеживаемых файлов: только новые исходники, публичные demo-данные и документация. Поиск распространённых паттернов private keys/GitHub/AWS/live payment tokens не нашёл совпадений. Это ограниченная проверка, не доказательство отсутствия всех возможных секретов.
-- Создана новая Git-история; история существующих проектов и платёжный код не импортировались.
+Актуальные результаты реализации находятся в [progress](progress.md), соответствие приёмке — в [acceptance](acceptance.md). Старый starter отчёт (4 теста и отсутствие SDK/API) больше не описывает состояние checkout.
 
-## Ограничения проверки
-Flutter SDK недоступен: сборки Android/iOS, Flutter analyze и tests не запускались. Полноценный HTTP backend и Next.js admin ещё не созданы, проверять их E2E пока нельзя. Browser smoke попытка через Playwright CLI не завершилась: окружение возвратило `ENOTDIR` для npm cache, затем для `/Users/dmitriyshtrakhov/Library/Caches/ms-playwright`. Макет проверен статически, но визуальный и интерактивный browser QA не подтверждён. Перед реализацией и передачей клиенту выполнить ручной/автоматический browser QA на desktop 1440px и mobile 390px, полную клавиатурную навигацию и contrast checks. CI опубликован, его удалённый результат следует проверять отдельно.
+Обязательные команды из корня:
 
-## Редакционная интеграция расширенного ТЗ v1.1
-Расширенный food_delivery_spec.md прочитан через Library целиком (906 строк). Текст использован как источник для единого SPEC_RU.md с явным согласованием стека, API prefix, JSON, состава V1, RPO и нагрузочных целей. Сам файл не материализован: официальный transfer helper вернул download failed для него и двух концептов PNG. Изображения не добавлены. Новые A01–A24 и D01–D08 — требования будущей приёмки, не пройденные тесты starter.
+```sh
+pnpm install --frozen-lockfile
+pnpm db:generate
+pnpm check
+pnpm test:integration
+pnpm build
+pnpm test:admin
+pnpm test:e2e
+pnpm contracts:generate
+pnpm audit --prod --audit-level=moderate
+```
+
+Flutter: `tools/flutter.sh pub get --enforce-lockfile`, `analyze`, `test` из apps/mobile с корректным относительным путём `../../tools/flutter.sh`. Полные headless Flutter/API/browser сценарии запускает `test:e2e`; это не запуск нативного приложения на устройстве.
+
+Покрытие API измеряется из apps/api:
+
+```sh
+node --env-file-if-exists=../../.env --test --experimental-test-coverage --test-coverage-include='dist/**' test/unit/*.test.mjs test/http/*.test.mjs test/integration/*.test.mjs
+```
+
+Последний результат: 95,67% строк, 79,52% ветвей, 90,58% функций **загруженных** dist-модулей. Транспилированные decorators/helpers входят в метрики; незагруженные entrypoints main/worker не входят. Worker отдельно запускается нагрузочным прогоном/Compose. Это не утверждение 100% покрытия всех исходников.
+
+`pnpm test:load` выполняет локальный 30-минутный профиль: 100 virtual clients, 20 catalog RPS, 20 orders/min. Для быстрого smoke: `pnpm test:load --seconds=15`; он не заменяет 1800 с. Результат в ignored `.generated/load`. Тесты restore/PITR: [recovery](recovery.md). Все runner создают свои временные БД и не сбрасывают пользовательскую.
+
+Удалённый CI и проверки на финальном remote SHA должны быть подтверждены отдельно. Наличие workflow, успешный local build или native generation не означают успешную Android/iOS/Web release сборку.

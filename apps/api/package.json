@@ -1,0 +1,49 @@
+{
+  "name": "@food/api",
+  "private": true,
+  "version": "0.2.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "pnpm build && node --env-file-if-exists=../../.env dist/main.js",
+    "start": "node --env-file-if-exists=../../.env dist/main.js",
+    "db:generate": "node --env-file-if-exists=../../.env ../../tools/generate-client.mjs",
+    "db:migrate": "node --env-file-if-exists=../../.env ../../tools/migrate.mjs",
+    "db:seed": "node --env-file-if-exists=../../.env ../../tools/seed.mjs",
+    "test:integration": "node --env-file-if-exists=../../.env --test test/integration/*.test.mjs",
+    "test:http": "node --test test/http/*.test.mjs",
+    "openapi": "node --env-file-if-exists=../../.env ../../tools/openapi.mjs",
+    "staff:bootstrap": "pnpm build && node --env-file-if-exists=../../.env ../../tools/bootstrap-owner.mjs",
+    "worker": "node --env-file-if-exists=../../.env dist/worker.js"
+  },
+  "dependencies": {
+    "@food/config": "workspace:*",
+    "@nestjs/common": "12.3.2",
+    "@nestjs/core": "12.3.2",
+    "@nestjs/platform-express": "12.3.2",
+    "@nestjs/swagger": "12.1.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "bullmq": "6.6.0",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "express": "5.2.1",
+    "helmet": "8.1.0",
+    "ioredis": "6.0.0",
+    "pg": "8.16.3",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "sharp": "0.35.5"
+  },
+  "devDependencies": {
+    "@prisma/client-generator-registry": "7.10.1",
+    "@prisma/driver-adapter-utils": "7.10.1",
+    "@prisma/internals": "7.10.1",
+    "@prisma/migrate": "7.10.1",
+    "@types/express": "5.0.5",
+    "@types/node": "24.10.1",
+    "prisma": "7.10.1",
+    "typescript": "5.9.3"
+  },
+  "type": "module"
+}

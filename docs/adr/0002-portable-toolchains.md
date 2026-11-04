@@ -1,0 +1,9 @@
+# ADR 0002 · Переносимые tooling и generated clients
+
+2026-11-04. Prisma 7.10.1, driver adapter pg и JS client engine выбраны вместо Rust engines. Стандартный CLI в текущей сети пытался скачать schema-engine с blocked binaries.prisma.sh даже при generate. Используем официальные npm packages того же exact version: registry генератора, SchemaEngineWasm и migration-aware adapter. Helpers проверены повторной миграцией/seed и реальными API/PG тестами.
+
+Это внутренние API Prisma; обновлять все версии согласованно и обязательно запускать migration-repeat/integration. В npm @prisma/internals отсутствовал требуемый рядом WASM asset: берётся byte-identical schema_engine_bg.wasm из CLI той же версии. Отличающийся файл не перезаписывается. TLS/checksum не отключаются. DB credentials не передаются в публичные generated файлы.
+
+Flutter 3.44.0/Dart 3.12.0: официальный Git tag соответствует revision 559ffa3f75e7402d65a8def9c28389a9b2e6fe42. Установщик извлекает SDK из публичного Cirrus CI image по immutable digest 46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8, затем проверяет revision/SDK version. Цепочка доверия включает сторонний CI image; для release pipeline предпочтительна официальная SDK distribution с проверенной SHA256 при разрешённом storage.googleapis.com. В этой среде storage пока блокирует Web engine и Android Maven artifacts; это не обходится отключением TLS или подменой checksum.
+
+OpenAPI генерируется из фактических Nest endpoints и явных публичных схем. TypeScript client — openapi-typescript; Dart/Dio models/operations — tools/dart-client.mjs. Enum без type определяется по значениям, чтобы JSON scalar не парсился как object. Финансовый input содержит только IDs/количество/адрес/код, не клиентские итоги. Полная типизация admin settings ещё не завершена.

@@ -1,0 +1,51 @@
+{
+  "name": "food-delivery",
+  "private": true,
+  "version": "0.2.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": "24.22.x"
+  },
+  "scripts": {
+    "build": "pnpm --filter @food/api build && pnpm --filter @food/admin build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @food/api build && node --test apps/api/test/*.test.mjs apps/api/test/unit/*.test.mjs tools/test/*.test.mjs",
+    "test:integration": "pnpm --filter @food/api test:integration",
+    "db:generate": "pnpm --filter @food/api db:generate",
+    "db:migrate": "pnpm --filter @food/api db:migrate",
+    "db:seed": "pnpm --filter @food/api db:seed",
+    "dev:api": "pnpm --filter @food/api dev",
+    "dev:admin": "pnpm --filter @food/admin dev",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm test:http",
+    "test:http": "pnpm --filter @food/api test:http",
+    "openapi": "pnpm --filter @food/api openapi",
+    "test:sql": "node tools/sql-smoke.mjs",
+    "lint": "eslint apps/api/src apps/api/test/unit apps/api/test/http apps/api/test/integration apps/admin/app apps/admin/next.config.ts packages/config tools eslint.config.mjs",
+    "format:check": "prettier --check \"apps/api/src/**/*.ts\" \"apps/api/test/{unit,http,integration}/**/*.mjs\" \"apps/admin/**/*.{ts,tsx,css,json}\" \"packages/config/**/*.{mjs,json,ts}\" \"tools/*.mjs\" \"tools/test/*.mjs\" \"tools/e2e/**/*.mjs\" package.json pnpm-workspace.yaml .github/workflows/checks.yml eslint.config.mjs",
+    "format": "prettier --write \"apps/api/src/**/*.ts\" \"apps/api/test/{unit,http,integration}/**/*.mjs\" \"apps/admin/**/*.{ts,tsx,css,json}\" \"packages/config/**/*.{mjs,json,ts}\" \"tools/*.mjs\" \"tools/test/*.mjs\" \"tools/e2e/**/*.mjs\" package.json pnpm-workspace.yaml .github/workflows/checks.yml eslint.config.mjs",
+    "test:admin": "node tools/admin-smoke.mjs",
+    "staff:bootstrap": "pnpm --filter @food/api staff:bootstrap",
+    "test:e2e": "node --env-file-if-exists=.env --test tools/e2e/*.test.mjs",
+    "dev:worker": "pnpm --filter @food/api worker",
+    "dev": "node tools/dev.mjs",
+    "start:api": "pnpm --filter @food/api start",
+    "test:recovery": "node --env-file-if-exists=.env tools/recovery-drill.mjs",
+    "contracts:generate": "pnpm --filter @food/api build && pnpm openapi && node tools/dart-client.mjs && pnpm exec openapi-typescript packages/contracts/openapi.json -o packages/contracts/client.d.ts",
+    "test:load": "node --env-file-if-exists=.env tools/load-test.mjs",
+    "test:pitr": "node --env-file-if-exists=.env tools/pitr-drill.mjs"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "13.1.0",
+    "@axe-core/playwright": "4.14.0",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "openapi-typescript": "7.13.0",
+    "prettier": "3.9.10",
+    "sharp": "0.35.5",
+    "typescript-eslint": "8.72.1"
+  }
+}

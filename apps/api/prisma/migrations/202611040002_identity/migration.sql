@@ -1,0 +1,15 @@
+ALTER TABLE "Branch" ADD COLUMN "version" INTEGER NOT NULL DEFAULT 1;
+CREATE TYPE "StaffRole" AS ENUM ('owner','manager','operator','kitchen','dispatcher','courier','analyst');
+CREATE TABLE "Customer" ("id" UUID PRIMARY KEY,"phone" VARCHAR(20) UNIQUE,"name" VARCHAR(80),"locale" TEXT NOT NULL DEFAULT 'ru',"deletedAt" TIMESTAMPTZ(3),"createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "StaffUser" ("id" UUID PRIMARY KEY,"email" TEXT NOT NULL UNIQUE,"passwordHash" TEXT NOT NULL,"mfaSecret" TEXT NOT NULL,"lastMfaCounter" BIGINT NOT NULL DEFAULT 0,"active" BOOLEAN NOT NULL DEFAULT true,"createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE "RoleBinding" ("id" UUID PRIMARY KEY,"staffId" UUID NOT NULL REFERENCES "StaffUser"("id") ON DELETE CASCADE,"role" "StaffRole" NOT NULL,"branchId" UUID REFERENCES "Branch"("id") ON DELETE RESTRICT, CONSTRAINT "RoleBinding_owner_scope" CHECK (("role"='owner' AND "branchId" IS NULL) OR ("role"<>'owner' AND "branchId" IS NOT NULL)));
+CREATE UNIQUE INDEX "RoleBinding_staffId_role_branchId_key" ON "RoleBinding"("staffId","role","branchId") NULLS NOT DISTINCT;
+CREATE TABLE "AuthSession" ("id" UUID PRIMARY KEY,"customerId" UUID REFERENCES "Customer"("id") ON DELETE RESTRICT,"staffId" UUID REFERENCES "StaffUser"("id") ON DELETE RESTRICT,"accessHash" TEXT NOT NULL UNIQUE,"refreshHash" TEXT UNIQUE,"familyId" UUID NOT NULL,"expiresAt" TIMESTAMPTZ(3) NOT NULL,"refreshExpiresAt" TIMESTAMPTZ(3),"revokedAt" TIMESTAMPTZ(3),"createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "AuthSession_one_subject" CHECK (("customerId" IS NULL) <> ("staffId" IS NULL)));
+CREATE INDEX "AuthSession_familyId_idx" ON "AuthSession"("familyId");
+CREATE INDEX "AuthSession_customerId_createdAt_idx" ON "AuthSession"("customerId","createdAt");
+CREATE TABLE "OtpChallenge" ("id" UUID PRIMARY KEY,"phone" VARCHAR(20) NOT NULL,"codeHash" TEXT NOT NULL,"ipHash" TEXT NOT NULL,"expiresAt" TIMESTAMPTZ(3) NOT NULL,"attempts" INTEGER NOT NULL DEFAULT 0 CHECK ("attempts" BETWEEN 0 AND 5),"consumedAt" TIMESTAMPTZ(3),"createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX "OtpChallenge_phone_createdAt_idx" ON "OtpChallenge"("phone","createdAt");
+CREATE INDEX "OtpChallenge_ipHash_createdAt_idx" ON "OtpChallenge"("ipHash","createdAt");
+CREATE TABLE "AuthThrottle" ("key" TEXT PRIMARY KEY,"hits" INTEGER NOT NULL DEFAULT 1,"resetAt" TIMESTAMPTZ(3) NOT NULL);
+CREATE TABLE "AuditLog" ("id" UUID PRIMARY KEY,"actorId" UUID,"action" TEXT NOT NULL,"entityId" UUID NOT NULL,"createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);
+CREATE INDEX "AuditLog_entityId_createdAt_idx" ON "AuditLog"("entityId","createdAt");

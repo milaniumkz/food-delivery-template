@@ -1,13 +1,33 @@
 name: food_delivery_starter
-description: White-label Flutter source starter; not a production app.
+description: Configurable food delivery client.
 publish_to: none
-version: 0.1.0+1
+version: 0.2.0+2
 environment:
-  sdk: '>=3.4.0 <4.0.0'
+  sdk: '>=3.12.0 <4.0.0'
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: 3.4.3
+  go_router: 18.1.2
+  dio: 5.11.1
+  flutter_secure_storage: 11.2.0
+  intl: 0.20.2
+  timezone: 0.11.2
+  flutter_map: 8.3.2
+  latlong2: 0.10.1
+  url_launcher: 6.3.3
+  geolocator: 14.1.2
+  food_delivery_api:
+    path: ../../packages/contracts/dart
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+  geolocator_platform_interface: 4.4.1
 flutter:
   uses-material-design: true
   assets:
     - assets/brand.json
+    - assets/brand-logo.png

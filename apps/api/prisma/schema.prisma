@@ -1,0 +1,406 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "client"
+}
+datasource db {
+  provider = "postgresql"
+}
+model Branch {
+ customerRestrictions CustomerRestriction[]
+  id String @id @default(uuid()) @db.Uuid
+  nameRu String
+  nameKk String
+  latitude Float?
+  longitude Float?
+  addressRu String @default("")
+  addressKk String @default("")
+  timeZone String @default("Asia/Almaty")
+  acceptingOrders Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  mediaAssets MediaAsset[]
+  categories Category[]
+  products Product[]
+  schedule Json @default("[]")
+  holidays Json @default("{}")
+  preparationMinutes Int @default(30)
+  maxActiveOrders Int @default(100)
+  allowCash Boolean @default(false)
+  minimumPickupMinor Int @default(0)
+  zones DeliveryZone[]
+  promotions Promotion[]
+  quotes Quote[]
+  orders Order[]
+  roles RoleBinding[]
+  version Int @default(1)
+}
+model Category {
+ id String @id @default(uuid()) @db.Uuid
+ branchId String @db.Uuid
+ branch Branch @relation(fields:[branchId],references:[id],onDelete:Restrict)
+ nameRu String
+ nameKk String
+ active Boolean @default(true)
+ position Int @default(0)
+ version Int @default(1)
+ products Product[]
+ @@index([branchId,active,position])
+}
+model MediaAsset {
+ id String @id @default(uuid()) @db.Uuid
+ branchId String @db.Uuid
+ branch Branch @relation(fields:[branchId],references:[id],onDelete:Restrict)
+ filename String @unique
+ mime String
+ width Int
+ height Int
+ bytes Int
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ products Product[]
+}
+model Product {
+  imageId String? @db.Uuid
+  image MediaAsset? @relation(fields:[imageId],references:[id],onDelete:Restrict)
+  id String @id @default(uuid()) @db.Uuid
+  branchId String @db.Uuid
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  categoryId String? @db.Uuid
+  category Category? @relation(fields:[categoryId],references:[id],onDelete:Restrict)
+  configuration Json @default("{}")
+  nameRu String
+  nameKk String
+  descriptionRu String @default("")
+  descriptionKk String @default("")
+  priceMinor Int
+  stockQuantity Int?
+  reservations StockReservation[]
+  active Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@index([branchId, active, id])
+}
+
+enum StaffRole {
+  owner
+  manager
+  operator
+  kitchen
+  dispatcher
+  courier
+  analyst
+}
+model CustomerRestriction {
+ customerId String @db.Uuid
+ branchId String @db.Uuid
+ customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict)
+ branch Branch @relation(fields:[branchId],references:[id],onDelete:Restrict)
+ blocked Boolean
+ reason String @db.VarChar(300)
+ version Int @default(1)
+ updatedAt DateTime @default(now()) @db.Timestamptz(3)
+ @@id([customerId,branchId])
+}
+model Customer {
+ restrictions CustomerRestriction[]
+  id String @id @default(uuid()) @db.Uuid
+  phone String? @unique @db.VarChar(20)
+  name String? @db.VarChar(80)
+  locale String @default("ru")
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  sessions AuthSession[]
+  quotes Quote[]
+  orders Order[]
+  redemptions PromotionRedemption[]
+  addresses CustomerAddress[]
+}
+model StaffUser {
+  version Int @default(1)
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique
+  passwordHash String
+  mfaSecret String
+  lastMfaCounter BigInt @default(0)
+  active Boolean @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  roles RoleBinding[]
+  sessions AuthSession[]
+}
+model RoleBinding {
+  id String @id @default(uuid()) @db.Uuid
+  staffId String @db.Uuid
+  staff StaffUser @relation(fields:[staffId],references:[id],onDelete:Cascade)
+  role StaffRole
+  refundAllowed Boolean @default(false)
+  branchId String? @db.Uuid
+  branch Branch? @relation(fields:[branchId],references:[id],onDelete:Restrict)
+  @@unique([staffId,role,branchId])
+}
+model AuthSession {
+  id String @id @default(uuid()) @db.Uuid
+  customerId String? @db.Uuid
+  customer Customer? @relation(fields:[customerId],references:[id],onDelete:Restrict)
+  staffId String? @db.Uuid
+  staff StaffUser? @relation(fields:[staffId],references:[id],onDelete:Restrict)
+  accessHash String @unique
+  refreshHash String? @unique
+  familyId String @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+  refreshExpiresAt DateTime? @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([familyId])
+  @@index([customerId,createdAt])
+}
+model OtpChallenge {
+  id String @id @db.Uuid
+  phone String? @db.VarChar(20)
+  phoneHash String?
+  codeHash String
+  ipHash String
+  expiresAt DateTime @db.Timestamptz(3)
+  attempts Int @default(0)
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([phone,createdAt])
+  @@index([phoneHash,createdAt])
+  @@index([ipHash,createdAt])
+}
+model AuthThrottle {
+  key String @id
+  hits Int @default(1)
+  resetAt DateTime @db.Timestamptz(3)
+}
+model AuditLog {
+  details Json?
+  id String @id @default(uuid()) @db.Uuid
+  actorId String? @db.Uuid
+  action String
+  entityId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([entityId,createdAt])
+}
+
+model DeliveryZone {
+ id String @id @default(uuid()) @db.Uuid
+ branchId String @db.Uuid
+ branch Branch @relation(fields:[branchId],references:[id],onDelete:Restrict)
+ name String
+ polygon Json
+ priority Int @default(0)
+ feeMinor Int
+ minimumMinor Int @default(0)
+ freeThresholdMinor Int?
+ active Boolean @default(true)
+ version Int @default(1)
+ @@index([branchId,active,priority])
+}
+model Promotion {
+ id String @id @default(uuid()) @db.Uuid
+ branchId String @db.Uuid
+ branch Branch @relation(fields:[branchId],references:[id],onDelete:Restrict)
+ code String
+ basisPoints Int?
+ fixedMinor Int?
+ maxDiscountMinor Int?
+ minimumMinor Int @default(0)
+ totalLimit Int?
+ customerLimit Int?
+ startsAt DateTime @db.Timestamptz(3)
+ endsAt DateTime @db.Timestamptz(3)
+ active Boolean @default(true)
+ version Int @default(1)
+ redemptions PromotionRedemption[]
+ @@unique([branchId,code])
+}
+model Quote {
+ id String @id @default(uuid()) @db.Uuid
+ customerId String @db.Uuid
+ customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict)
+ branchId String @db.Uuid
+ branch Branch @relation(fields:[branchId],references:[id],onDelete:Restrict)
+ input Json
+ calculation Json
+ signature String
+ expiresAt DateTime @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ order Order?
+ @@index([customerId,createdAt])
+}
+enum OrderStatus {
+ awaiting_payment
+ placed
+ accepted
+ preparing
+ ready
+ out_for_delivery
+ delivered
+ completed
+ rejected
+ cancelled
+ expired
+}
+enum PaymentStatus {
+ not_required
+ unpaid
+ pending
+ paid
+ failed
+ expired
+ refund_pending
+ refunded
+ manual_review
+}
+model Order {
+ id String @id @default(uuid()) @db.Uuid
+ quoteId String @unique @db.Uuid
+ quote Quote @relation(fields:[quoteId],references:[id],onDelete:Restrict)
+ customerId String @db.Uuid
+ customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict)
+ branchId String @db.Uuid
+ branch Branch @relation(fields:[branchId],references:[id],onDelete:Restrict)
+ fulfilment String
+ addressSnapshot Json?
+ comment String @default("")
+ status OrderStatus
+ paymentMethod String
+ paymentStatus PaymentStatus
+ currency String @default("KZT")
+ subtotalMinor Int
+ discountMinor Int
+ deliveryFeeMinor Int
+ totalMinor Int
+ pickupSecret String?
+ version Int @default(1)
+ expiresAt DateTime @db.Timestamptz(3)
+ preparationMinutes Int?
+ courierId String? @db.Uuid
+ courierAccepted Boolean @default(false)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ updatedAt DateTime @updatedAt @db.Timestamptz(3)
+ items OrderItem[]
+ payments PaymentAttempt[]
+ reservations StockReservation[]
+ redemption PromotionRedemption?
+ events OrderEvent[]
+ @@index([branchId,status,createdAt])
+ @@index([customerId,createdAt])
+ @@index([courierId,status])
+}
+model OrderItem {
+ optionsSnapshot Json @default("[]")
+ id String @id @default(uuid()) @db.Uuid
+ orderId String @db.Uuid
+ order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ productId String @db.Uuid
+ nameRu String
+ nameKk String
+ quantity Int
+ unitPriceMinor Int
+ lineTotalMinor Int
+}
+model StockReservation {
+ orderId String @db.Uuid
+ order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ productId String @db.Uuid
+ product Product @relation(fields:[productId],references:[id],onDelete:Restrict)
+ quantity Int
+ releasedAt DateTime? @db.Timestamptz(3)
+ @@id([orderId,productId])
+}
+model PromotionRedemption {
+ id String @id @default(uuid()) @db.Uuid
+ promotionId String @db.Uuid
+ promotion Promotion @relation(fields:[promotionId],references:[id],onDelete:Restrict)
+ customerId String @db.Uuid
+ customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict)
+ orderId String @unique @db.Uuid
+ order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ releasedAt DateTime? @db.Timestamptz(3)
+ @@index([promotionId,customerId,releasedAt])
+}
+model PaymentAttempt {
+ id String @id @default(uuid()) @db.Uuid
+ orderId String @db.Uuid
+ order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ provider String @default("mock")
+ providerId String @unique
+ amountMinor Int
+ status PaymentStatus @default(pending)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ refund Refund?
+ @@index([orderId])
+}
+model Refund {
+ id String @id @default(uuid()) @db.Uuid
+ paymentId String @unique @db.Uuid
+ payment PaymentAttempt @relation(fields:[paymentId],references:[id],onDelete:Restrict)
+ amountMinor Int
+ reason String
+ status String
+ provider String @default("mock")
+ confirmedAt DateTime? @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model OrderEvent {
+ id String @id @default(uuid()) @db.Uuid
+ orderId String @db.Uuid
+ order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ actorId String? @db.Uuid
+ action String
+ version Int
+ reason String?
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ @@index([orderId,createdAt])
+}
+model IdempotencyRecord {
+ actorId String @db.Uuid
+ scope String
+ key String
+ requestHash String
+ response Json
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ @@id([actorId,scope,key])
+}
+model OutboxEvent {
+ id String @id @default(uuid()) @db.Uuid
+ aggregateId String @db.Uuid
+ version Int
+ type String
+ payload Json
+ processedAt DateTime? @db.Timestamptz(3)
+ attempts Int @default(0)
+ nextAttemptAt DateTime @default(now()) @db.Timestamptz(3)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ @@index([processedAt,nextAttemptAt])
+}
+model Notification {
+ id String @id @default(uuid()) @db.Uuid
+ eventId String @unique @db.Uuid
+ customerId String @db.Uuid
+ orderId String @db.Uuid
+ type String
+ provider String @default("local-demo")
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model BrandSettings {
+ id Int @id
+ slug String @unique
+}
+model CustomerAddress {
+ id String @id @default(uuid()) @db.Uuid
+ customerId String @db.Uuid
+ customer Customer @relation(fields:[customerId],references:[id],onDelete:Restrict)
+ label String @default("")
+ text String
+ latitude Float?
+ longitude Float?
+ version Int @default(1)
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ @@index([customerId,createdAt])
+}
+
+model WorkerHeartbeat {
+ kind String @id
+ lastSeenAt DateTime @db.Timestamptz(3)
+}

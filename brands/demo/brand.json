@@ -8,9 +8,13 @@
     "ru",
     "kk"
   ],
-  "primaryColor": "#D94C2B",
+  "primaryColor": "#B9381B",
   "surfaceColor": "#FFF9F2",
   "textColor": "#22271F",
   "logoAsset": "assets/logo.svg",
-  "supportEmail": "support@example.invalid"
+  "supportEmail": "support@example.invalid",
+  "schemaVersion": 1,
+  "defaultLocale": "ru",
+  "timeZone": "Asia/Almaty",
+  "onPrimary": "#FFFFFF"
 }
