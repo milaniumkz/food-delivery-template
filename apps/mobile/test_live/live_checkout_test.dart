@@ -148,8 +148,9 @@ void main() {
             sent = true;
           }
           if (shop.currentOrder!.status ==
-              (fulfilment == 'pickup' ? 'completed' : 'delivered'))
+              (fulfilment == 'pickup' ? 'completed' : 'delivered')) {
             break;
+          }
           await Future<void>.delayed(const Duration(milliseconds: 100));
         }
         expect(

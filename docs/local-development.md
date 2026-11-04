@@ -58,3 +58,5 @@ pnpm exec openapi-typescript packages/contracts/openapi.json -o packages/contrac
 Integration/E2E создают и удаляют только собственные временные БД `food_test_<hex>`. Нужны локальные PostgreSQL/Redis и права CREATE DATABASE. Не запускайте их с production credentials. Flutter tests и браузерные тесты требуют loopback sockets; в sandbox используйте разрешённый execution context. Сборка/CI-файл без реального запуска не является приёмкой. Детальные фактические результаты и незакрытые gates — [progress](progress.md).
 
 Контейнерный вариант запуска API/admin/worker проверен; команды и persistent volumes описаны в [OPERATIONS](OPERATIONS.md). При работе в контейнере локальные SMS лежат в отдельном volume, а не в host `.local/sms`.
+
+Privacy: Flutter профиль → выгрузка; публичный Next.js path `/delete-account` работает без приложения. Для повторной отправки SMS дождитесь60s; export требует отдельного proof и доступен5min. Локальные правила/экспорт: [data register](data-register.md). `SMS_DIRECTORY` позволяет выбрать приватный development каталог кодов; тесты используют собственные временные директории.

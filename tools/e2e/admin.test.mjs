@@ -7,7 +7,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:net";
 import { once } from "node:events";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   digest,
@@ -93,7 +93,8 @@ test(
         adminUrl = `http://127.0.0.1:${adminPort}`;
       const env = {
         ...process.env,
-        NODE_ENV: "test",
+        NODE_ENV: "development",
+        SMS_DIRECTORY: resolve(".generated/web-delete-" + name),
         DATABASE_URL: url.toString(),
         PORT: String(apiPort),
         ADMIN_ORIGIN: adminUrl,
@@ -500,8 +501,80 @@ test(
         ).status(),
         401,
       );
+      await page.clock.install();
+      await page.goto(adminUrl + "/delete-account");
+      await expect(
+        page.getByRole("heading", { name: "TAMAK: удаление аккаунта" }),
+      ).toBeVisible();
+      await accessible();
+      await page.getByLabel("Телефон", { exact: true }).fill("+77000000333");
+      let smsResponse = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/account-api/auth/otp/request") &&
+          response.request().method() === "POST",
+      );
+      await page
+        .getByRole("button", { name: "Получить код", exact: true })
+        .click();
+      let sms = await (await smsResponse).json();
+      const readCode = (id) =>
+        readFileSync(resolve(env.SMS_DIRECTORY, id + ".txt"), "utf8").trim();
+      await page
+        .getByLabel("Код SMS", { exact: true })
+        .fill(readCode(sms.challengeId));
+      const verified = page.waitForResponse((response) =>
+        response.url().endsWith("/account-api/auth/otp/verify"),
+      );
+      await page
+        .getByRole("button", { name: "Подтвердить телефон", exact: true })
+        .click();
+      const webSession = await (await verified).json();
+      assert.deepEqual(Object.keys(webSession).sort(), [
+        "accessToken",
+        "expiresIn",
+      ]);
+      await expect(
+        page.getByRole("button", {
+          name: "Получить код для удаления",
+          exact: true,
+        }),
+      ).toBeDisabled();
+      // Advance the UI clock and synthetic send timestamp together, without skipping either confirmation.
+      await db.otpChallenge.updateMany({
+        where: { phone: "+77000000333" },
+        data: { createdAt: new Date(Date.now() - 61000) },
+      });
+      await page.clock.fastForward(61000);
+      smsResponse = page.waitForResponse((response) =>
+        response.url().endsWith("/account-api/me/deletion-challenge"),
+      );
+      await page
+        .getByRole("button", { name: "Получить код для удаления", exact: true })
+        .click();
+      sms = await (await smsResponse).json();
+      await page
+        .getByLabel("Код SMS", { exact: true })
+        .fill(readCode(sms.challengeId));
+      await page.getByRole("checkbox").check();
+      await page
+        .getByRole("button", { name: "Удалить аккаунт", exact: true })
+        .click();
+      await expect(
+        page.getByText("Аккаунт удалён. Сессии отозваны.", { exact: true }),
+      ).toBeVisible();
+      assert.equal((await customerRequest("/orders/" + order.id)).status, 401);
+      assert.equal(
+        (await db.customer.findUniqueOrThrow({ where: { id: customer.id } }))
+          .phone,
+        null,
+      );
+      assert.equal(await page.evaluate(() => localStorage.length), 0);
       assert.deepEqual(errors, []);
     } finally {
+      rmSync(resolve(".generated/web-delete-" + name), {
+        recursive: true,
+        force: true,
+      });
       if (browser) await browser.close();
       await stop(admin);
       await stop(api);

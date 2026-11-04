@@ -1,3 +1,4 @@
+import 'ui/privacy.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -42,6 +43,13 @@ final router = GoRouter(
     GoRoute(
       path: '/orders/:id',
       builder: (context, state) => OrderScreen(id: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/privacy',
+      builder: (context, state) => Consumer(
+        builder: (context, ref, _) =>
+            PrivacyScreen(key: ValueKey(ref.watch(shopProvider).customer?.id)),
+      ),
     ),
     GoRoute(
       path: '/profile',

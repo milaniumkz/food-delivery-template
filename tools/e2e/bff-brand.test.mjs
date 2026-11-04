@@ -95,6 +95,26 @@ test(
         503,
       );
       assert.equal(
+        (
+          await fetch(origin + "/account-api/auth/otp/request", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ phone: "+77000000123" }),
+          })
+        ).status,
+        503,
+      );
+      assert.equal(
+        (
+          await fetch(origin + "/account-api/auth/otp/request", {
+            method: "POST",
+            headers: { ...headers, origin: "https://other.example.invalid" },
+            body: JSON.stringify({ phone: "+77000000123" }),
+          })
+        ).status,
+        403,
+      );
+      assert.equal(
         forwarded,
         0,
         "No private request may reach the mismatched upstream",

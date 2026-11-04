@@ -1,3 +1,4 @@
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1166,6 +1167,23 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
       child: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          if (shop.brand['supportEmail'] != null)
+            OutlinedButton.icon(
+              onPressed: () => shop.run(() async {
+                if (!await launchUrl(
+                  Uri(scheme: 'mailto', path: shop.brand['supportEmail']),
+                )) {
+                  throw StateError('Mail application unavailable');
+                }
+              }),
+              icon: const Icon(Icons.support_agent),
+              label: Text(
+                shop.text(
+                  'Связаться с поддержкой',
+                  'Қолдау қызметіне хабарласу',
+                ),
+              ),
+            ),
           if (shop.customer == null)
             FilledButton(
               onPressed: () => context.push('/login'),
@@ -1173,6 +1191,12 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
             )
           else ...[
             Text(shop.customer!.phone ?? ''),
+            OutlinedButton(
+              onPressed: () => context.push('/privacy'),
+              child: Text(
+                shop.text('Выгрузка моих данных', 'Деректерімді шығару'),
+              ),
+            ),
             TextField(
               controller: name,
               decoration: InputDecoration(

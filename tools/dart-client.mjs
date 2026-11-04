@@ -3,6 +3,25 @@ const doc = JSON.parse(readFileSync("packages/contracts/openapi.json", "utf8"));
 const schemas = doc.components.schemas;
 // Generated methods deliberately use operationId rather than duplicating endpoint paths.
 const methods = [
+  [
+    "privacyChallenge",
+    "PrivacyController_challenge",
+    "OtpChallengeResponse",
+    "EmptyRequest",
+  ],
+  [
+    "privacyConfirm",
+    "PrivacyController_confirm",
+    "OkResponse",
+    "OtpVerifyRequest",
+  ],
+  [
+    "privacyExport",
+    "PrivacyController_export",
+    "PrivacyExportPage",
+    null,
+    "privacy",
+  ],
   ["bootstrap", "PublicController_bootstrap", "BootstrapResponse"],
   ["branches", "PublicController_branches", "BranchesResponse"],
   ["catalog", "PublicController_catalog", "CatalogPage", null, "catalog"],
@@ -259,15 +278,19 @@ for (const [name, operation, response, body, special] of methods) {
     args.push(
       "{required String branchId, String locale = 'ru', int limit = 100, String? cursor, String? search}",
     );
+  else if (special === "privacy")
+    args.push("{String section = 'profile', String? cursor}");
   else if (special === "page") args.push("{int limit = 20, String? cursor}");
   else if (special?.includes("key"))
     args.push("{required String idempotencyKey}");
   const query =
     special === "catalog"
       ? ", queryParameters: {'branchId': branchId, 'locale': locale, 'limit': limit, if (cursor != null) 'cursor': cursor, if (search != null) 'search': search}"
-      : special === "page"
-        ? ", queryParameters: {'limit': limit, if (cursor != null) 'cursor': cursor}"
-        : "";
+      : special === "privacy"
+        ? ", queryParameters: {'section': section, if (cursor != null) 'cursor': cursor}"
+        : special === "page"
+          ? ", queryParameters: {'limit': limit, if (cursor != null) 'cursor': cursor}"
+          : "";
   const url = path
     .replaceAll("{key}", "${Uri.encodeComponent(lookupKey)}")
     .replaceAll("{id}", "${Uri.encodeComponent(id)}");

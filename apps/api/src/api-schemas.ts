@@ -1,6 +1,31 @@
 import { customerSchemas } from "./customers.js";
 import type { OpenAPIObject, SchemaObject } from "@nestjs/swagger";
 export const apiSchemas: Record<string, SchemaObject> = {
+  PrivacyExportPage: {
+    type: "object",
+    additionalProperties: false,
+    required: ["section", "items", "nextCursor", "generatedAt"],
+    properties: {
+      section: {
+        type: "string",
+        enum: [
+          "profile",
+          "orders",
+          "quotes",
+          "sessions",
+          "restrictions",
+          "notifications",
+        ],
+      },
+      items: {
+        type: "array",
+        maxItems: 10,
+        items: { type: "object", additionalProperties: true },
+      },
+      nextCursor: { type: "string", format: "uuid", nullable: true },
+      generatedAt: { type: "string", format: "date-time" },
+    },
+  },
   ...(customerSchemas as Record<string, SchemaObject>),
   BrandConfig: {
     title: "Public Brand v1",
@@ -2184,6 +2209,9 @@ for (const name of ["CustomerOrder", "OperationsOrder"]) {
   };
 }
 const responses: Record<string, string> = {
+  PrivacyController_challenge: "OtpChallengeResponse",
+  PrivacyController_confirm: "OkResponse",
+  PrivacyController_export: "PrivacyExportPage",
   CustomersController_list: "AdminCustomerList",
   CustomersController_restrict: "CustomerRestriction",
   SystemController_get: "SystemStatus",
@@ -2261,6 +2289,8 @@ const responses: Record<string, string> = {
   NotificationController_pending: "OutboxStatus",
 };
 const bodies: Record<string, string> = {
+  PrivacyController_confirm: "OtpVerifyRequest",
+  PrivacyController_challenge: "EmptyRequest",
   AuthController_requestOtp: "OtpRequest",
   AuthController_verifyOtp: "OtpVerifyRequest",
   AuthController_refresh: "RefreshRequest",

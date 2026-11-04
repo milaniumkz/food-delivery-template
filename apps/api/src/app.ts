@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { PrivacyController } from "./privacy.js";
 import { CustomersController } from "./customers.js";
 import { SystemController } from "./system.js";
 import { ReportsController } from "./reports.js";
@@ -25,6 +26,7 @@ import { AuthController, AuthService, DevSmsProvider } from "./auth.js";
 import { Branding, PublicController } from "./public.js";
 @Module({
   controllers: [
+    PrivacyController,
     CustomersController,
     SystemController,
     ReportsController,

@@ -7,7 +7,12 @@ export const metadata = {
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        {children}
+        <footer>
+          <a href="/delete-account">Удалить аккаунт без приложения</a>
+        </footer>
+      </body>
     </html>
   );
 }

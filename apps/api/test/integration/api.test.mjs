@@ -2458,6 +2458,212 @@ test("PostgreSQL migrations, seed, public API and readiness lifecycle", async (t
       },
     );
     await t.test(
+      "privacy export needs fresh session-bound purpose proof, paginates and excludes authentication secrets",
+      async () => {
+        const subject = await db.orm.customer.create({
+            data: { phone: "+77000000888", name: "Synthetic export subject" },
+          }),
+          foreign = await db.orm.customer.create({
+            data: { phone: "+77000000889", name: "Foreign export subject" },
+          });
+        async function session(customerId) {
+          const token = randomBytes(32).toString("hex");
+          const row = await db.orm.authSession.create({
+            data: {
+              customerId,
+              accessHash: digest(token),
+              familyId: crypto.randomUUID(),
+              expiresAt: new Date(Date.now() + 900000),
+            },
+          });
+          return { token, id: row.id };
+        }
+        const own = await session(subject.id),
+          second = await session(subject.id),
+          other = await session(foreign.id);
+        await db.orm.customerAddress.create({
+          data: { customerId: subject.id, text: "Synthetic private address" },
+        });
+        await db.orm.customerAddress.create({
+          data: { customerId: foreign.id, text: "Foreign private address" },
+        });
+        const call = (path, method = "GET", body, identity = own) =>
+          fetch(base + "/v1" + path, {
+            method,
+            headers: {
+              authorization: "Bearer " + identity.token,
+              "content-type": "application/json",
+            },
+            ...(body ? { body: JSON.stringify(body) } : {}),
+          });
+        assert.equal((await call("/me/privacy/export")).status, 403);
+        const challengeResponse = await call(
+          "/me/privacy/challenge",
+          "POST",
+          {},
+        );
+        assert.equal(challengeResponse.status, 200);
+        const challenge = await challengeResponse.json(),
+          code = app.get(DevSmsProvider).deliveries.get(challenge.challengeId),
+          proof = { challengeId: challenge.challengeId, code };
+        assert.equal(
+          (await call("/auth/otp/verify", "POST", proof)).status,
+          401,
+          "Privacy proof cannot create a login session",
+        );
+        assert.equal(
+          (await call("/me/delete", "POST", proof)).status,
+          422,
+          "Privacy proof cannot delete an account",
+        );
+        assert.equal(
+          (await call("/me/privacy/confirm", "POST", proof, second)).status,
+          422,
+          "Proof is tied to the exact session",
+        );
+        const wrong = code === "000000" ? "000001" : "000000";
+        assert.equal(
+          (await call("/me/privacy/confirm", "POST", { ...proof, code: wrong }))
+            .status,
+          422,
+        );
+        assert.equal(
+          (
+            await db.orm.otpChallenge.findUniqueOrThrow({
+              where: { id: challenge.challengeId },
+            })
+          ).attempts,
+          1,
+        );
+        assert.equal(
+          (await call("/me/privacy/confirm", "POST", proof)).status,
+          200,
+        );
+        assert.equal(
+          (await call("/me/privacy/confirm", "POST", proof)).status,
+          422,
+        );
+        const exported = await (await call("/me/privacy/export")).json();
+        assert.equal(exported.items[0].id, subject.id);
+        assert.equal(exported.items[0].addresses.length, 1);
+        assert.equal(
+          exported.items[0].addresses[0].text,
+          "Synthetic private address",
+        );
+        assert.ok(!JSON.stringify(exported).includes("Foreign"));
+        const branchId = "00000000-0000-4000-8000-000000000001";
+        const ownQuote = await db.orm.quote.create({
+          data: {
+            customerId: subject.id,
+            branchId,
+            input: { comment: "Synthetic own quote" },
+            calculation: { totalMinor: 100 },
+            signature: "synthetic-no-credential",
+            expiresAt: new Date(Date.now() + 300000),
+          },
+        });
+        await db.orm.quote.create({
+          data: {
+            customerId: foreign.id,
+            branchId,
+            input: { comment: "Foreign quote" },
+            calculation: { totalMinor: 100 },
+            signature: "synthetic-no-credential",
+            expiresAt: new Date(Date.now() + 300000),
+          },
+        });
+        const ownOrder = await db.orm.order.create({
+          data: {
+            quoteId: ownQuote.id,
+            customerId: subject.id,
+            branchId,
+            fulfilment: "pickup",
+            status: "cancelled",
+            paymentMethod: "mock",
+            paymentStatus: "failed",
+            subtotalMinor: 100,
+            discountMinor: 0,
+            deliveryFeeMinor: 0,
+            totalMinor: 100,
+            expiresAt: new Date(Date.now() + 300000),
+          },
+        });
+        await db.orm.customerRestriction.create({
+          data: {
+            customerId: subject.id,
+            branchId,
+            blocked: true,
+            reason: "Synthetic own restriction",
+          },
+        });
+        const notificationEvent = await db.orm.outboxEvent.create({
+          data: {
+            aggregateId: ownOrder.id,
+            version: 1,
+            type: "order.cancelled",
+            payload: {},
+          },
+        });
+        await db.orm.notification.create({
+          data: {
+            eventId: notificationEvent.id,
+            customerId: subject.id,
+            orderId: ownOrder.id,
+            type: "order.cancelled",
+          },
+        });
+        for (const section of [
+          "orders",
+          "quotes",
+          "restrictions",
+          "notifications",
+        ]) {
+          const response = await call("/me/privacy/export?section=" + section);
+          assert.equal(response.status, 200);
+          const result = await response.json();
+          assert.equal(result.items.length, 1);
+          assert.equal(result.nextCursor, null);
+          assert.ok(!JSON.stringify(result).includes("Foreign"));
+        }
+        for (let i = 0; i < 12; i++) await session(subject.id);
+        const first = await (
+          await call("/me/privacy/export?section=sessions")
+        ).json();
+        assert.equal(first.items.length, 10);
+        assert.ok(first.nextCursor);
+        assert.ok(
+          first.items.every(
+            (value) =>
+              Object.keys(value).sort().join(",") ===
+              "createdAt,expiresAt,id,revokedAt",
+          ),
+        );
+        const next = await (
+          await call(
+            "/me/privacy/export?section=sessions&cursor=" + first.nextCursor,
+          )
+        ).json();
+        assert.ok(next.items.length > 0 && next.items.length <= 10);
+        assert.equal(
+          new Set([...first.items, ...next.items].map((row) => row.id)).size,
+          14,
+        );
+        assert.equal(
+          (await call("/me/privacy/export", "GET", undefined, other)).status,
+          403,
+        );
+        assert.equal(
+          (await call("/me/privacy/export?customerId=" + foreign.id)).status,
+          400,
+        );
+        await db.orm.authSession.update({
+          where: { id: own.id },
+          data: { privacyVerifiedAt: new Date(Date.now() - 300001) },
+        });
+        assert.equal((await call("/me/privacy/export")).status, 403);
+      },
+    );
+    await t.test(
       "profile/address ownership, account deletion, all-session revocation and SMS-budget retention",
       async () => {
         const phone = "+77000000444",

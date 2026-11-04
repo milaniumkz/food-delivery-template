@@ -55,7 +55,7 @@ export class DevSmsProvider {
       throw new Error("Dev SMS forbidden");
     this.deliveries.set(challengeId, code);
     if (process.env.NODE_ENV !== "test") {
-      const dir = resolve("../../.local/sms");
+      const dir = resolve(process.env.SMS_DIRECTORY ?? "../../.local/sms");
       await mkdir(dir, { recursive: true, mode: 0o700 });
       await writeFile(resolve(dir, challengeId + ".txt"), code + "\n", {
         flag: "wx",
@@ -89,7 +89,11 @@ export class AuthService {
   private async lock(tx: Prisma.TransactionClient, key: string) {
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext(${key}))`;
   }
-  async requestOtp(input: RequestOtp, ip: string) {
+  async requestOtp(
+    input: RequestOtp,
+    ip: string,
+    context?: { purpose: "deletion" | "privacy"; sessionId: string },
+  ) {
     await this.tenant.assert();
     const id = randomUUID(),
       code = String(randomInt(1000000)).padStart(6, "0"),
@@ -134,6 +138,8 @@ export class AuthService {
       await tx.otpChallenge.create({
         data: {
           id,
+          purpose: context?.purpose ?? "login",
+          sessionId: context?.sessionId ?? null,
           phone: input.phone,
           phoneHash: keyedDigest("phone:" + input.phone),
           ipHash,
@@ -189,6 +195,7 @@ export class AuthService {
       if (
         !challenge ||
         !challenge.phone ||
+        challenge.purpose !== "login" ||
         challenge.consumedAt ||
         challenge.expiresAt.getTime() <= Date.now() ||
         challenge.attempts >= 5
@@ -318,7 +325,9 @@ export class AuthService {
         proof.consumedAt ||
         proof.expiresAt.getTime() <= Date.now() ||
         proof.attempts >= 5 ||
-        proof.phone !== customer.phone
+        proof.phone !== customer.phone ||
+        proof.purpose !== "deletion" ||
+        proof.sessionId !== session.id
       )
         return false;
       const valid = equalSecret(
@@ -347,6 +356,9 @@ export class AuthService {
       await tx.customerRestriction.updateMany({
         where: { customerId: customer.id },
         data: { reason: "" },
+      });
+      await tx.authThrottle.deleteMany({
+        where: { key: "privacy-export:" + customer.id },
       });
       await tx.customerAddress.deleteMany({
         where: { customerId: customer.id },
@@ -390,7 +402,12 @@ export class AuthService {
       });
       return true;
     });
-    if (!result) throw new UnauthorizedException();
+    if (!result)
+      throw new BusinessError(
+        "INVALID_PROOF",
+        "Код недействителен или истёк. Получите новый код.",
+        422,
+      );
     return { ok: true };
   }
   async logoutAll(request: Request) {
@@ -582,6 +599,7 @@ export class AuthController {
     return this.auth.requestOtp(
       { phone: session.customer!.phone },
       request.ip ?? "unknown",
+      { purpose: "deletion", sessionId: session.id },
     );
   }
   @Post("me/delete") @HttpCode(200) delete(

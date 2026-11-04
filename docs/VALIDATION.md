@@ -24,7 +24,7 @@ Flutter: `tools/flutter.sh pub get --enforce-lockfile`, `analyze`, `test` из a
 node --env-file-if-exists=../../.env --test --experimental-test-coverage --test-coverage-include='dist/**' test/unit/*.test.mjs test/http/*.test.mjs test/integration/*.test.mjs
 ```
 
-Последний результат: 95,67% строк, 79,52% ветвей, 90,58% функций **загруженных** dist-модулей. Транспилированные decorators/helpers входят в метрики; незагруженные entrypoints main/worker не входят. Worker отдельно запускается нагрузочным прогоном/Compose. Это не утверждение 100% покрытия всех исходников.
+Последний результат: 95,86% строк, 79,96% ветвей, 91,06% функций **загруженных** dist-модулей. Транспилированные decorators/helpers входят в метрики; незагруженные entrypoints main/worker не входят. Worker отдельно запускается нагрузочным прогоном/Compose. Это не утверждение 100% покрытия всех исходников.
 
 `pnpm test:load` выполняет локальный 30-минутный профиль: 100 virtual clients, 20 catalog RPS, 20 orders/min. Для быстрого smoke: `pnpm test:load --seconds=15`; он не заменяет 1800 с. Результат в ignored `.generated/load`. Тесты restore/PITR: [recovery](recovery.md). Все runner создают свои временные БД и не сбрасывают пользовательскую.
 

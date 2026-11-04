@@ -23,7 +23,7 @@
 | A17 | Локально | Worker restart, удаление своих queue jobs, физический Redis stop/start; expiry продолжает работу и notifications dedup |
 | A18 | Частично | Flutter polling/resume и monotonic version; реальный push provider ещё отсутствует |
 | A19 | Частично | Ручной адрес/GPS disabled/finite bounds, safe network errors; полный offline cache, устройства и network chaos UI matrix не готовы |
-| A20 | Частично | OTP deletion, session revoke, address/quote/order/restriction redaction, сохранённый SMS budget; утверждённая retention policy и public web deletion/export отсутствуют |
+| A20 | Частично | OTP deletion, session revoke, address/quote/order/restriction redaction, сохранённый SMS budget; session/purpose-bound export и public web deletion проверены; утверждённые consent/retention/legal policies ещё отсутствуют |
 | A21 | Локально | Параллельный последний promo use, release при отмене |
 | A22 | Частично | Второй brand API/admin/DB isolation и deterministic native generation; две полноценные installable сборки blocked |
 | A23 | Частично | Logical+media restore, physical WAL/PITR, readiness/replay passed; real-provider reconciliation/offsite/RPO-RTO не приняты |
@@ -42,6 +42,6 @@
 
 ## Остаток программной реализации
 
-Кроме внешних интеграций остаются: каталог баннеров и структурированных атрибутов/несовместимости; ограниченный offline cache; смена телефона с reauthentication; полный адресный UX; документы/support/privacy preferences, consent versions, защищённый экспорт и публичный web deletion; courier issue flow; расширенный dashboard/фильтры; production object storage/push/adapters/наблюдаемость и полноценный release gate. Эти пункты — **незавершённая разработка**, не сетевые блокеры. Их нельзя объявлять готовыми на основании прошедшего основного заказа.
+Кроме внешних интеграций остаются: каталог баннеров и структурированных атрибутов/несовместимости; ограниченный offline cache; смена телефона с reauthentication; полный адресный UX; юридические документы/privacy preferences и consent versions; courier issue flow; расширенный dashboard/фильтры; production object storage/push/adapters/наблюдаемость и полноценный release gate. Эти пункты — **незавершённая разработка**, не сетевые блокеры. Их нельзя объявлять готовыми на основании прошедшего основного заказа.
 
 Перед выпуском требуется закрыть весь перечень, затем повторить проверки на конкретном SHA, подтвердить внешние sandbox/устройства и бизнес-параметры. Запрос «делай полностью» не даёт разрешения выдумывать договоры/доступы или включать реальные деньги/магазины.

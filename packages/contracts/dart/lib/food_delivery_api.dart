@@ -279,6 +279,16 @@ class OtpVerifyRequest {
   Map<String, dynamic> toJson() => {'challengeId': challengeId, 'code': code, };
 }
 
+class PrivacyExportPage {
+  final String section;
+  final List<Map<String, dynamic>> items;
+  final String? nextCursor;
+  final DateTime generatedAt;
+  const PrivacyExportPage({required this.section, required this.items, required this.nextCursor, required this.generatedAt});
+  factory PrivacyExportPage.fromJson(Map<String, dynamic> json) => PrivacyExportPage(section: json['section'] as String, items: (json['items'] as List).map((item) => _object(item)).toList(), nextCursor: json['nextCursor'] == null ? null : json['nextCursor'] as String, generatedAt: DateTime.parse(json['generatedAt'] as String), );
+  Map<String, dynamic> toJson() => {'section': section, 'items': items.map((item) => item).toList(), 'nextCursor': nextCursor == null ? null : nextCursor!, 'generatedAt': generatedAt.toUtc().toIso8601String(), };
+}
+
 class ProductCategory {
   final String id;
   final String name;
@@ -470,6 +480,18 @@ class VersionRequest {
 class FoodDeliveryApi {
   final Dio dio;
   const FoodDeliveryApi(this.dio);
+  Future<OtpChallengeResponse> privacyChallenge(EmptyRequest input) async {
+    final response = await dio.request('/me/privacy/challenge', data: input.toJson(), options: Options(method: 'POST'));
+    return OtpChallengeResponse.fromJson(_object(response.data));
+  }
+  Future<OkResponse> privacyConfirm(OtpVerifyRequest input) async {
+    final response = await dio.request('/me/privacy/confirm', data: input.toJson(), options: Options(method: 'POST'));
+    return OkResponse.fromJson(_object(response.data));
+  }
+  Future<PrivacyExportPage> privacyExport({String section = 'profile', String? cursor}) async {
+    final response = await dio.request('/me/privacy/export', queryParameters: {'section': section, if (cursor != null) 'cursor': cursor}, options: Options(method: 'GET'));
+    return PrivacyExportPage.fromJson(_object(response.data));
+  }
   Future<BootstrapResponse> bootstrap() async {
     final response = await dio.request('/bootstrap', options: Options(method: 'GET'));
     return BootstrapResponse.fromJson(_object(response.data));
