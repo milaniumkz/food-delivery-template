@@ -32,7 +32,8 @@
     "test:recovery": "node --env-file-if-exists=.env tools/recovery-drill.mjs",
     "contracts:generate": "pnpm --filter @food/api build && pnpm openapi && node tools/dart-client.mjs && pnpm exec openapi-typescript packages/contracts/openapi.json -o packages/contracts/client.d.ts",
     "test:load": "node --env-file-if-exists=.env tools/load-test.mjs",
-    "test:pitr": "node --env-file-if-exists=.env tools/pitr-drill.mjs"
+    "test:pitr": "node --env-file-if-exists=.env tools/pitr-drill.mjs",
+    "test:containers": "node --env-file-if-exists=.env tools/container-smoke.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "13.1.0",

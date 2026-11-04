@@ -85,3 +85,45 @@ test("configuration rejects duplicate identity, invalid bounds and excessive tot
     options: [],
   });
 });
+
+test("incompatibility blocks variant/choice and choice/choice pairs; definitions reject unknown, self and reverse duplicates", () => {
+  const config = {
+    variants: [variant],
+    groups: [
+      {
+        ...group,
+        minimum: 0,
+        maximum: 2,
+        choices: group.choices.map((value) => ({ ...value, active: true })),
+      },
+    ],
+    incompatiblePairs: [{ firstId: "s", secondId: "t" }],
+  };
+  assert.throws(
+    () => selectOptions(100000, config, "v", ["s", "t"]),
+    (error) => error.code === "INCOMPATIBLE_OPTIONS",
+  );
+  assert.equal(
+    selectOptions(100000, config, "v", ["s"]).unitPriceMinor,
+    310000,
+  );
+  config.incompatiblePairs = [{ firstId: "v", secondId: "s" }];
+  assert.throws(
+    () => selectOptions(100000, config, "v", ["s"]),
+    (error) => error.code === "INCOMPATIBLE_OPTIONS",
+  );
+  for (const pairs of [
+    [{ firstId: "v", secondId: "missing" }],
+    [{ firstId: "s", secondId: "s" }],
+    [
+      { firstId: "v", secondId: "s" },
+      { firstId: "s", secondId: "v" },
+    ],
+    [{ firstId: "g", secondId: "s" }],
+  ]) {
+    assert.throws(
+      () => validateConfiguration({ ...config, incompatiblePairs: pairs }),
+      (error) => error.code === "INVALID_OPTIONS",
+    );
+  }
+});

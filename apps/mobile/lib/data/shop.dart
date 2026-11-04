@@ -29,6 +29,8 @@ String operationKey() => List.generate(
 String money(int minor) =>
     '${(minor ~/ 100)}${minor % 100 == 0 ? '' : ',${(minor % 100).toString().padLeft(2, '0')}'} ₸';
 
+class SessionRevocationUnconfirmed implements Exception {}
+
 class Selection {
   final String? variantId;
   final List<String> choiceIds;
@@ -142,6 +144,12 @@ class Shop extends ChangeNotifier {
   }
 
   String describe(Object e) {
+    if (e is SessionRevocationUnconfirmed) {
+      return text(
+        'Локальный выход выполнен. Сервер не подтвердил завершение сеанса. При стабильной связи войдите и выберите «Выйти со всех устройств».',
+        'Осы құрылғыда шығу орындалды. Сервер сессияның аяқталғанын растамады. Байланыс қалпына келгенде кіріп, барлық құрылғылардан шығыңыз.',
+      );
+    }
     if (e is DioException) {
       final code = e.response?.data is Map ? e.response?.data['code'] : null;
       if (e.response?.statusCode == 401) {
@@ -160,6 +168,10 @@ class Shop extends ChangeNotifier {
         );
       }
       const messages = {
+        'INCOMPATIBLE_OPTIONS': [
+          'Эти варианты и добавки нельзя выбрать вместе. Измените выбор.',
+          'Бұл нұсқалар мен қоспаларды бірге таңдауға болмайды. Таңдауды өзгертіңіз.',
+        ],
         'INVALID_PROOF': [
           'Код недействителен или истёк. Проверьте код или получите новый.',
           'Код жарамсыз немесе мерзімі өтті. Кодты тексеріңіз не жаңасын алыңыз.',
@@ -365,9 +377,23 @@ class Shop extends ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
-    await api.logout(const EmptyRequest());
-    await clearSession();
+  Future<void> logout() => revokeSession(false);
+  Future<void> logoutAll() => revokeSession(true);
+  Future<void> revokeSession(bool all) async {
+    bool confirmed = false;
+    try {
+      if (all) {
+        await api.logoutAll(const EmptyRequest());
+      } else {
+        await api.logout(const EmptyRequest());
+      }
+      confirmed = true;
+    } catch (_) {
+      /* The remote outcome stays unknown; local credentials must still be erased. */
+    } finally {
+      await clearSession();
+    }
+    if (!confirmed) throw SessionRevocationUnconfirmed();
   }
 
   Future<void> loadCatalog() async {
@@ -487,10 +513,42 @@ class Shop extends ChangeNotifier {
               .map((c) => c.id)
               .toList() ??
           <String>[];
+      final retained = {if (variant != null) variant.id, ...choices};
+      if (options.any((option) => !retained.contains(option.id))) {
+        missing.add(
+          (locale == 'kk' ? item.nameKk : item.nameRu) +
+              text(
+                ' (вариант или добавки недоступны)',
+                ' (нұсқа не қоспалар қолжетімсіз)',
+              ),
+        );
+        continue;
+      }
+      if ((config?.incompatiblePairs ?? <IncompatiblePair>[]).any(
+        (pair) =>
+            retained.contains(pair.firstId) && retained.contains(pair.secondId),
+      )) {
+        missing.add(
+          (locale == 'kk' ? item.nameKk : item.nameRu) +
+              text(
+                ' (сочетание больше недоступно)',
+                ' (таңдау енді қолжетімсіз)',
+              ),
+        );
+        continue;
+      }
       final selection = Selection(variantId: variant?.id, choiceIds: choices),
           key = cartKey(p.id, selection);
       selections[key] = selection;
-      cart[key] = ((cart[key] ?? 0) + item.quantity).clamp(1, 99);
+      final count = (cart[key] ?? 0) + item.quantity;
+      if (count > 99) {
+        missing.add(
+          (locale == 'kk' ? item.nameKk : item.nameRu) +
+              text(' (превышен лимит порций)', ' (порция шегінен асты)'),
+        );
+        continue;
+      }
+      cart[key] = count;
     }
     await saveCart();
     notice =
@@ -677,6 +735,11 @@ class Shop extends ChangeNotifier {
 
   Future<void> loadHistory({bool more = false}) async {
     final actor = customer?.id;
+    if (actor == null) {
+      history = [];
+      historyCursor = null;
+      return;
+    }
     final page = await api.orders(cursor: more ? historyCursor : null);
     if (customer?.id != actor || disposed) return;
     history = more ? [...history, ...page.items] : page.items;

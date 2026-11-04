@@ -892,6 +892,16 @@ class _HistoryState extends ConsumerState<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final shop = ref.watch(shopProvider);
+    ref.listen(shopProvider.select((value) => value.customer?.id), (
+      previous,
+      next,
+    ) {
+      if (next != null && next != previous) {
+        Future.microtask(() {
+          if (mounted) shop.run(shop.loadHistory);
+        });
+      }
+    });
     return PageFrame(
       title: shop.text('Мои заказы', 'Менің тапсырыстарым'),
       child: shop.customer == null
@@ -904,6 +914,7 @@ class _HistoryState extends ConsumerState<HistoryScreen> {
           : RefreshIndicator(
               onRefresh: () => shop.run(() => shop.loadHistory()),
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 children: [
                   for (final order in shop.history)
@@ -1268,12 +1279,7 @@ class _ProfileState extends ConsumerState<ProfileScreen> {
             ),
             gap(),
             OutlinedButton(
-              onPressed: shop.busy
-                  ? null
-                  : () => shop.run(() async {
-                      await shop.api.logoutAll(const api.EmptyRequest());
-                      await shop.clearSession();
-                    }),
+              onPressed: shop.busy ? null : () => shop.run(shop.logoutAll),
               child: Text(
                 shop.text(
                   'Выйти со всех устройств',
@@ -1371,17 +1377,27 @@ class _OptionsState extends State<OptionsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.shop,
-        c = widget.product.configuration!,
-        valid =
-            (c.variants.isEmpty ||
-                c.variants.any((v) => v.id == variant && v.active)) &&
-            c.groups.every((g) {
-              final count = g.choices
-                  .where((v) => v.active && selected.contains(v.id))
-                  .length;
-              return count >= g.minimum && count <= g.maximum;
-            });
+    final s = widget.shop, c = widget.product.configuration!;
+    final picked = {...selected, ?variant};
+    final pairs = c.incompatiblePairs ?? <api.IncompatiblePair>[];
+    bool conflicts(String id, Set<String> others) => pairs.any(
+      (pair) =>
+          (pair.firstId == id && others.contains(pair.secondId)) ||
+          (pair.secondId == id && others.contains(pair.firstId)),
+    );
+    final compatible = !pairs.any(
+      (pair) => picked.contains(pair.firstId) && picked.contains(pair.secondId),
+    );
+    final valid =
+        compatible &&
+        (c.variants.isEmpty ||
+            c.variants.any((v) => v.id == variant && v.active)) &&
+        c.groups.every((g) {
+          final count = g.choices
+              .where((v) => v.active && selected.contains(v.id))
+              .length;
+          return count >= g.minimum && count <= g.maximum;
+        });
     return AlertDialog(
       title: Text(widget.product.name),
       content: SingleChildScrollView(
@@ -1403,6 +1419,7 @@ class _OptionsState extends State<OptionsDialog> {
                     .map(
                       (v) => DropdownMenuItem(
                         value: v.id,
+                        enabled: v.id == variant || !conflicts(v.id, selected),
                         child: Text(
                           '${s.locale == 'kk' ? v.nameKk : v.nameRu} · ${money(v.priceMinor)}',
                         ),
@@ -1423,15 +1440,36 @@ class _OptionsState extends State<OptionsDialog> {
                     '${s.locale == 'kk' ? choice.nameKk : choice.nameRu} +${money(choice.deltaMinor)}',
                   ),
                   value: selected.contains(choice.id),
-                  onChanged: (v) => setState(() {
-                    if (v == true) {
-                      selected.add(choice.id);
-                    } else {
-                      selected.remove(choice.id);
-                    }
-                  }),
+                  subtitle:
+                      !selected.contains(choice.id) &&
+                          conflicts(choice.id, picked)
+                      ? Text(
+                          s.text(
+                            'Несовместимо с текущим выбором',
+                            'Қазіргі таңдаумен үйлеспейді',
+                          ),
+                        )
+                      : null,
+                  onChanged:
+                      !selected.contains(choice.id) &&
+                          conflicts(choice.id, picked)
+                      ? null
+                      : (v) => setState(() {
+                          if (v == true) {
+                            selected.add(choice.id);
+                          } else {
+                            selected.remove(choice.id);
+                          }
+                        }),
                 ),
             ],
+            if (!compatible)
+              Text(
+                s.text(
+                  'Измените несовместимое сочетание, чтобы продолжить.',
+                  'Жалғастыру үшін үйлеспейтін таңдауды өзгертіңіз.',
+                ),
+              ),
             if (widget.initialSelection != null)
               Text(
                 s.text(

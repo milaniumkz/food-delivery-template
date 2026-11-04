@@ -12,6 +12,7 @@ x-app: &app
     ADMIN_ORIGIN: http://127.0.0.1:3000
     ADMIN_API_URL: http://api:3001
     MEDIA_DIRECTORY: /app/.local/media
+    SMS_DIRECTORY: /app/.local/sms
   init: true
   security_opt: ["no-new-privileges:true"]
   cap_drop: ["ALL"]

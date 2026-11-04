@@ -160,6 +160,14 @@ class FeatureFlags {
   Map<String, dynamic> toJson() => {'ordering': ordering, 'paymentProvider': paymentProvider, };
 }
 
+class IncompatiblePair {
+  final String firstId;
+  final String secondId;
+  const IncompatiblePair({required this.firstId, required this.secondId});
+  factory IncompatiblePair.fromJson(Map<String, dynamic> json) => IncompatiblePair(firstId: json['firstId'] as String, secondId: json['secondId'] as String, );
+  Map<String, dynamic> toJson() => {'firstId': firstId, 'secondId': secondId, };
+}
+
 class MockResultRequest {
   final String outcome;
   const MockResultRequest({required this.outcome});
@@ -310,11 +318,12 @@ class ProductChoice {
 }
 
 class ProductConfiguration {
+  final List<IncompatiblePair>? incompatiblePairs;
   final List<ProductVariant> variants;
   final List<ProductGroup> groups;
-  const ProductConfiguration({required this.variants, required this.groups});
-  factory ProductConfiguration.fromJson(Map<String, dynamic> json) => ProductConfiguration(variants: (json['variants'] as List).map((item) => ProductVariant.fromJson(_object(item))).toList(), groups: (json['groups'] as List).map((item) => ProductGroup.fromJson(_object(item))).toList(), );
-  Map<String, dynamic> toJson() => {'variants': variants.map((item) => item.toJson()).toList(), 'groups': groups.map((item) => item.toJson()).toList(), };
+  const ProductConfiguration({this.incompatiblePairs, required this.variants, required this.groups});
+  factory ProductConfiguration.fromJson(Map<String, dynamic> json) => ProductConfiguration(incompatiblePairs: json['incompatiblePairs'] == null ? null : (json['incompatiblePairs'] as List).map((item) => IncompatiblePair.fromJson(_object(item))).toList(), variants: (json['variants'] as List).map((item) => ProductVariant.fromJson(_object(item))).toList(), groups: (json['groups'] as List).map((item) => ProductGroup.fromJson(_object(item))).toList(), );
+  Map<String, dynamic> toJson() => {if (incompatiblePairs != null) 'incompatiblePairs': incompatiblePairs!.map((item) => item.toJson()).toList(), 'variants': variants.map((item) => item.toJson()).toList(), 'groups': groups.map((item) => item.toJson()).toList(), };
 }
 
 class ProductGroup {

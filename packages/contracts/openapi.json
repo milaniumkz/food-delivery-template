@@ -11314,6 +11314,23 @@
           "expectedVersion"
         ]
       },
+      "IncompatiblePairInput": {
+        "type": "object",
+        "properties": {
+          "firstId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "secondId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "firstId",
+          "secondId"
+        ]
+      },
       "VariantInput": {
         "type": "object",
         "properties": {
@@ -11430,6 +11447,13 @@
       "ConfigurationInput": {
         "type": "object",
         "properties": {
+          "incompatiblePairs": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncompatiblePairInput"
+            }
+          },
           "variants": {
             "maxItems": 20,
             "type": "array",
@@ -14588,6 +14612,24 @@
           }
         }
       },
+      "IncompatiblePair": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "firstId",
+          "secondId"
+        ],
+        "properties": {
+          "firstId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "secondId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
       "ProductConfiguration": {
         "type": "object",
         "additionalProperties": false,
@@ -14596,6 +14638,13 @@
           "groups"
         ],
         "properties": {
+          "incompatiblePairs": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/IncompatiblePair"
+            }
+          },
           "variants": {
             "type": "array",
             "items": {
@@ -14665,6 +14714,13 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "incompatiblePairs": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/IncompatiblePair"
+            }
+          },
           "variants": {
             "type": "array",
             "items": {

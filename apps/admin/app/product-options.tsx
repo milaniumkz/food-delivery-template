@@ -23,7 +23,11 @@ export type Group = {
   maximum: number;
   choices: Choice[];
 };
-export type Configuration = { variants?: Variant[]; groups?: Group[] };
+export type Configuration = {
+  variants?: Variant[];
+  groups?: Group[];
+  incompatiblePairs?: Array<{ firstId: string; secondId: string }>;
+};
 type Category = {
   id: string;
   nameRu: string;
@@ -50,6 +54,11 @@ export default function ProductOptions({
   csrf: string;
   onSaved: () => Promise<void>;
 }) {
+  const [pairs, setPairs] = useState(
+      product.configuration?.incompatiblePairs ?? [],
+    ),
+    [first, setFirst] = useState(""),
+    [second, setSecond] = useState("");
   const [variants, setVariants] = useState<Variant[]>(
       product.configuration?.variants ?? [],
     ),
@@ -64,6 +73,10 @@ export default function ProductOptions({
     [stock, setStock] = useState(
       product.stockQuantity == null ? "" : String(product.stockQuantity),
     );
+  const pairChoices = [
+    ...variants,
+    ...groups.flatMap((group) => group.choices),
+  ];
   useEffect(() => {
     let active = true;
     api("admin/categories?branchId=" + product.branchId)
@@ -127,7 +140,7 @@ export default function ProductOptions({
         {
           expectedVersion: product.version,
           categoryId: category || null,
-          configuration: { variants, groups },
+          configuration: { variants, groups, incompatiblePairs: pairs },
         },
         csrf,
       );
@@ -434,6 +447,84 @@ export default function ProductOptions({
           >
             Добавить группу добавок
           </button>
+          <fieldset>
+            <legend>Несовместимые сочетания</legend>
+            <p>
+              Варианты и добавки из одной пары нельзя выбирать вместе. Сначала
+              добавьте и назовите опции выше.
+            </p>
+            {pairs.map((pair, index) => (
+              <div key={pair.firstId + ":" + pair.secondId}>
+                <span>
+                  {pairChoices.find((value) => value.id === pair.firstId)
+                    ?.nameRu || "Удалённая опция"}{" "}
+                  +{" "}
+                  {pairChoices.find((value) => value.id === pair.secondId)
+                    ?.nameRu || "Удалённая опция"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPairs(pairs.filter((_, i) => i !== index))}
+                >
+                  Удалить правило {index + 1}
+                </button>
+              </div>
+            ))}
+            <div className="form-row">
+              {[
+                {
+                  id: "incompatible-first",
+                  label: "Первая опция",
+                  value: first,
+                  set: setFirst,
+                },
+                {
+                  id: "incompatible-second",
+                  label: "Несовместимая опция",
+                  value: second,
+                  set: setSecond,
+                },
+              ].map((field) => (
+                <div key={field.id}>
+                  <label htmlFor={field.id}>{field.label}</label>
+                  <select
+                    id={field.id}
+                    value={field.value}
+                    onChange={(event) => field.set(event.target.value)}
+                  >
+                    <option value="">Выберите опцию</option>
+                    {pairChoices.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.nameRu || "Без названия"} /{" "}
+                        {option.nameKk || "Атауы жоқ"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={
+                !first ||
+                !second ||
+                first === second ||
+                pairs.length >= 100 ||
+                pairs.some(
+                  (pair) =>
+                    [pair.firstId, pair.secondId].sort().join(":") ===
+                    [first, second].sort().join(":"),
+                )
+              }
+              onClick={() => {
+                setPairs([...pairs, { firstId: first, secondId: second }]);
+                setFirst("");
+                setSecond("");
+              }}
+            >
+              Добавить несовместимость
+            </button>
+          </fieldset>
           <button type="submit">Сохранить варианты и категорию</button>
         </fieldset>
       </form>

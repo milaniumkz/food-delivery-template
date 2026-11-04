@@ -901,10 +901,16 @@ export class OrderService {
       });
     return rows.length;
   }
-  async staffOrders(context: StaffContext, query: AdminOrders) {
-    const kitchen = !context.session.staff!.roles.some((r) =>
-      ["owner", "manager", "operator", "dispatcher"].includes(r.role),
+  private kitchenOnly(context: StaffContext, branchId: string) {
+    return !context.session.staff!.roles.some(
+      (binding) =>
+        binding.role === "owner" ||
+        (binding.branchId === branchId &&
+          ["manager", "operator", "dispatcher"].includes(binding.role)),
     );
+  }
+  async staffOrders(context: StaffContext, query: AdminOrders) {
+    const kitchen = this.kitchenOnly(context, query.branchId);
     const rows = await this.page(
       {
         branchId: query.branchId,
@@ -925,9 +931,7 @@ export class OrderService {
       include,
     });
     if (!order) throw new NotFoundException();
-    const kitchen = !context.session.staff!.roles.some((r) =>
-      ["owner", "manager", "operator", "dispatcher"].includes(r.role),
-    );
+    const kitchen = this.kitchenOnly(context, order.branchId);
     return this.present(order, false, kitchen);
   }
   async branchOf(id: string) {
@@ -1071,9 +1075,7 @@ export class OrderService {
       return this.present(
         await this.get(tx, id),
         false,
-        !context.session.staff!.roles.some((r) =>
-          ["owner", "manager", "operator", "dispatcher"].includes(r.role),
-        ),
+        this.kitchenOnly(context, order.branchId),
       );
     });
   }

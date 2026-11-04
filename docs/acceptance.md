@@ -6,7 +6,7 @@
 |---|---|---|
 | A01 | Локально | Flutter guest cart→OTP→server quote→mock→browser restaurant/courier→delivered; native device ещё не проверен |
 | A02 | Локально | Flutter pickup без адреса→browser выдача по customer code→completed |
-| A03 | Частично | min/max/required/active/duplicate/foreign modifier server tests и snapshots; отдельный graph несовместимости choices ещё не реализован |
+| A03 | Локально | min/max/required/active/duplicate/foreign choices, пары несовместимости variants/choices, snapshots, browser editor, Flutter dialog и create-time revalidation |
 | A04 | Локально | Изменение цены/stop-list/expiry требует нового quote и подтверждения |
 | A05 | Локально | Конкурентный create, durable key/payload, by-key lookup, consumed quote recovery; один order/attempt |
 | A06 | Локально | Параллельная последняя порция и общий stock разных вариантов |
@@ -42,6 +42,6 @@
 
 ## Остаток программной реализации
 
-Кроме внешних интеграций остаются: каталог баннеров и структурированных атрибутов/несовместимости; ограниченный offline cache; смена телефона с reauthentication; полный адресный UX; юридические документы/privacy preferences и consent versions; courier issue flow; расширенный dashboard/фильтры; production object storage/push/adapters/наблюдаемость и полноценный release gate. Эти пункты — **незавершённая разработка**, не сетевые блокеры. Их нельзя объявлять готовыми на основании прошедшего основного заказа.
+Кроме внешних интеграций остаются: каталог баннеров и структурированных атрибутов; ограниченный offline cache; смена телефона с reauthentication; полный адресный UX; юридические документы/privacy preferences и consent versions; courier issue flow; расширенный dashboard/фильтры; production object storage/push/adapters/наблюдаемость и полноценный release gate. Эти пункты — **незавершённая разработка**, не сетевые блокеры. Их нельзя объявлять готовыми на основании прошедшего основного заказа.
 
 Перед выпуском требуется закрыть весь перечень, затем повторить проверки на конкретном SHA, подтвердить внешние sandbox/устройства и бизнес-параметры. Запрос «делай полностью» не даёт разрешения выдумывать договоры/доступы или включать реальные деньги/магазины.

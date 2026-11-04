@@ -283,6 +283,64 @@ test(
       );
       assert.equal(asset.status(), 200);
       assert.match(asset.headers()["content-type"], /^image\/webp/);
+      await page
+        .getByRole("button", { name: "Добавить группу добавок", exact: true })
+        .click();
+      const modifierGroup = page.getByRole("group", {
+        name: "Группа добавок 1",
+        exact: true,
+      });
+      await modifierGroup
+        .getByLabel("Название RU", { exact: true })
+        .fill("Тестовые добавки");
+      await modifierGroup
+        .getByLabel("Название KK", { exact: true })
+        .fill("Сынақ қоспалар");
+      await modifierGroup
+        .getByLabel("Максимум выбора", { exact: true })
+        .fill("2");
+      for (const [index, ru, kk] of [
+        [1, "Сыр", "Ірімшік"],
+        [2, "Соус", "Тұздық"],
+      ]) {
+        await modifierGroup
+          .getByRole("button", { name: "Добавить добавку", exact: true })
+          .click();
+        const choice = modifierGroup.getByRole("group", {
+          name: "Добавка " + index,
+          exact: true,
+        });
+        await choice.getByLabel("Название RU", { exact: true }).fill(ru);
+        await choice.getByLabel("Название KK", { exact: true }).fill(kk);
+      }
+      await page
+        .getByLabel("Первая опция", { exact: true })
+        .selectOption({ label: "Сыр / Ірімшік" });
+      await page
+        .getByLabel("Несовместимая опция", { exact: true })
+        .selectOption({ label: "Соус / Тұздық" });
+      await page
+        .getByRole("button", { name: "Добавить несовместимость", exact: true })
+        .click();
+      await expect(
+        page.getByRole("button", { name: "Удалить правило 1", exact: true }),
+      ).toBeVisible();
+      const configSaved = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/configuration") &&
+          response.request().method() === "POST",
+      );
+      await page
+        .getByRole("button", {
+          name: "Сохранить варианты и категорию",
+          exact: true,
+        })
+        .click();
+      const configResponse = await configSaved;
+      assert.equal(configResponse.status(), 201);
+      const configuredOptions = await configResponse.json();
+      assert.equal(configuredOptions.configuration.incompatiblePairs.length, 1);
+      await accessible();
       await page.getByRole("button", { name: "Отмена", exact: true }).click();
       await card
         .getByRole("button", { name: "В стоп-лист", exact: true })
@@ -337,6 +395,26 @@ test(
           },
           ...(body ? { body: JSON.stringify(body) } : {}),
         });
+      const forbiddenOptions =
+        configuredOptions.configuration.groups[0].choices.map(
+          (choice) => choice.id,
+        );
+      assert.equal(
+        (
+          await customerRequest("/checkout/quote", "POST", {
+            branchId,
+            fulfilment: "pickup",
+            items: [
+              {
+                productId: created.id,
+                quantity: 1,
+                choiceIds: forbiddenOptions,
+              },
+            ],
+          })
+        ).status,
+        422,
+      );
       const quoteResponse = await customerRequest("/checkout/quote", "POST", {
         branchId,
         fulfilment: "pickup",

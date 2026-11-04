@@ -80,7 +80,21 @@ export class GroupInput {
   @Type(() => ChoiceInput)
   choices!: ChoiceInput[];
 }
+export class IncompatiblePairInput {
+  @ApiProperty({ type: String, format: "uuid" }) @IsUUID() firstId!: string;
+  @ApiProperty({ type: String, format: "uuid" }) @IsUUID() secondId!: string;
+}
 export class ConfigurationInput {
+  @ApiProperty({
+    required: false,
+    type: () => [IncompatiblePairInput],
+    maxItems: 100,
+  })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => IncompatiblePairInput)
+  incompatiblePairs: IncompatiblePairInput[] = [];
   @ApiProperty({ required: false, type: () => [VariantInput], maxItems: 20 })
   @IsArray()
   @ArrayMaxSize(20)
@@ -120,6 +134,26 @@ export function validateConfiguration(input: ConfigurationInput) {
         "INVALID_OPTIONS",
         "Проверьте минимум и максимум выбора добавок.",
       );
+  const selectable = new Set(
+      [...input.variants, ...input.groups.flatMap((g) => g.choices)].map(
+        (value) => value.id,
+      ),
+    ),
+    seenPairs = new Set<string>();
+  for (const pair of input.incompatiblePairs ?? []) {
+    const key = [pair.firstId, pair.secondId].sort().join(":");
+    if (
+      pair.firstId === pair.secondId ||
+      !selectable.has(pair.firstId) ||
+      !selectable.has(pair.secondId) ||
+      seenPairs.has(key)
+    )
+      throw new BusinessError(
+        "INVALID_OPTIONS",
+        "Проверьте несовместимые сочетания вариантов и добавок.",
+      );
+    seenPairs.add(key);
+  }
   return input;
 }
 export function selectOptions(
@@ -156,6 +190,19 @@ export function selectOptions(
   );
   if (choiceIds.some((id) => !known.has(id)))
     throw new BusinessError("INVALID_CHOICE", "Добавка недоступна.");
+  const selectedIds = new Set([
+    ...choiceIds,
+    ...(variantId ? [variantId] : []),
+  ]);
+  if (
+    (configuration.incompatiblePairs ?? []).some(
+      (pair) => selectedIds.has(pair.firstId) && selectedIds.has(pair.secondId),
+    )
+  )
+    throw new BusinessError(
+      "INCOMPATIBLE_OPTIONS",
+      "Эти варианты и добавки нельзя выбрать вместе.",
+    );
   for (const group of groups) {
     const selected = group.choices.filter((c) => choiceIds.includes(c.id));
     if (selected.length < group.minimum || selected.length > group.maximum)

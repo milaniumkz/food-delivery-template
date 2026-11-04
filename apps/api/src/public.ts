@@ -250,6 +250,9 @@ export class PublicController {
               }
             : null,
           configuration: {
+            incompatiblePairs:
+              (p.configuration as { incompatiblePairs?: unknown[] })
+                .incompatiblePairs ?? [],
             variants:
               (p.configuration as { variants?: unknown[] }).variants ?? [],
             groups: (p.configuration as { groups?: unknown[] }).groups ?? [],

@@ -24,3 +24,9 @@ docker compose --env-file .env -f infra/compose/compose.yaml -f infra/compose/ap
 Compose запускает одноразовый migration/seed job, затем API/admin/worker. API и admin опубликованы только на loopback 3001/3000, данные PostgreSQL/Redis/media/SMS сохраняются в именованных volumes. AUTH_KEY и DB пароль берутся из ignored `.env` во время запуска. Идентичность demo закреплена абсолютным BRAND_CONFIG; для клиента нужен отдельный override, БД и volumes. Не запускайте одновременно host `pnpm dev` на тех же портах.
 
 Проверки: `/v1/health/ready` и каталог — HTTP200, admin root — HTTP200; в «Система» отдельно видна свежесть expiry/notification heartbeat. Bootstrap владельца выполняется только один раз; существующий владелец host/Compose использует ту же БД и ключ. `docker compose ... stop api admin worker` останавливает только приложения. Не используйте `down -v` для обычного перезапуска.
+
+### Проверка контейнерного образа
+
+После сборки `food-delivery-template:demo` выполните `pnpm test:containers` из корня. Проверка закрепляет локальный image ID, создаёт отдельную временную БД и свежие SMS/media volumes, проверяет non-root/private directory, OTP, MFA, нормализацию фото и mock payment/refund, затем удаляет только свои ресурсы. Требуется локальный PostgreSQL; секреты не печатаются.
+
+Образ заранее создаёт `/app/.local/sms` с владельцем uid1000 и mode0700. Уже существующий том от более старого образа может сохранить root ownership: перед обновлением проверьте metadata и исправьте владельца каталога на uid1000 и mode0700 административным доступом к этому конкретному local volume. Не удаляйте том и не выводите его содержимое.

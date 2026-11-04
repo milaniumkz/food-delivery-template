@@ -360,6 +360,9 @@ export class AuthService {
       await tx.authThrottle.deleteMany({
         where: { key: "privacy-export:" + customer.id },
       });
+      await tx.idempotencyRecord.deleteMany({
+        where: { actorId: customer.id },
+      });
       await tx.customerAddress.deleteMany({
         where: { customerId: customer.id },
       });

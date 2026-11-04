@@ -1654,11 +1654,25 @@ Object.assign(apiSchemas, {
       },
     },
   },
+  IncompatiblePair: {
+    type: "object",
+    additionalProperties: false,
+    required: ["firstId", "secondId"],
+    properties: {
+      firstId: { type: "string", format: "uuid" },
+      secondId: { type: "string", format: "uuid" },
+    },
+  },
   ProductConfiguration: {
     type: "object",
     additionalProperties: false,
     required: ["variants", "groups"],
     properties: {
+      incompatiblePairs: {
+        type: "array",
+        maxItems: 100,
+        items: { $ref: "#/components/schemas/IncompatiblePair" },
+      },
       variants: {
         type: "array",
         items: { $ref: "#/components/schemas/ProductVariant" },
@@ -1736,6 +1750,11 @@ Object.assign(apiSchemas, {
     type: "object",
     additionalProperties: false,
     properties: {
+      incompatiblePairs: {
+        type: "array",
+        maxItems: 100,
+        items: { $ref: "#/components/schemas/IncompatiblePair" },
+      },
       variants: {
         type: "array",
         items: { $ref: "#/components/schemas/ProductVariant" },

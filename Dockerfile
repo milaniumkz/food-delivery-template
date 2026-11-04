@@ -21,7 +21,7 @@ FROM node:24.22.1-bookworm-slim AS runtime
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=build --chown=node:node /app /app
-RUN mkdir -p /app/.local/media && chown -R node:node /app/.local
+RUN mkdir -p /app/.local/media /app/.local/sms && chown -R node:node /app/.local && chmod 0700 /app/.local/sms
 USER node
 WORKDIR /app/apps/api
 EXPOSE 3001

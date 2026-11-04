@@ -1128,6 +1128,12 @@ export interface components {
             position: number;
             expectedVersion: number;
         };
+        IncompatiblePairInput: {
+            /** Format: uuid */
+            firstId: string;
+            /** Format: uuid */
+            secondId: string;
+        };
         VariantInput: {
             /** Format: uuid */
             id: string;
@@ -1156,6 +1162,7 @@ export interface components {
             choices: components["schemas"]["ChoiceInput"][];
         };
         ConfigurationInput: {
+            incompatiblePairs?: components["schemas"]["IncompatiblePairInput"][];
             variants?: components["schemas"]["VariantInput"][];
             groups?: components["schemas"]["GroupInput"][];
         };
@@ -1923,7 +1930,14 @@ export interface components {
             maximum: number;
             choices: components["schemas"]["ProductChoice"][];
         };
+        IncompatiblePair: {
+            /** Format: uuid */
+            firstId: string;
+            /** Format: uuid */
+            secondId: string;
+        };
         ProductConfiguration: {
+            incompatiblePairs?: components["schemas"]["IncompatiblePair"][];
             variants: components["schemas"]["ProductVariant"][];
             groups: components["schemas"]["ProductGroup"][];
         };
@@ -1941,6 +1955,7 @@ export interface components {
             position: number;
         } | null;
         AdminConfiguration: {
+            incompatiblePairs?: components["schemas"]["IncompatiblePair"][];
             variants?: components["schemas"]["ProductVariant"][];
             groups?: components["schemas"]["ProductGroup"][];
         };

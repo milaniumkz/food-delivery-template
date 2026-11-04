@@ -132,6 +132,55 @@ void main() {
       shop.dispose();
     },
   );
+  test(
+    'offline logout erases local identity while retaining unresolved checkout and reporting unconfirmed server revocation',
+    () async {
+      for (final all in [false, true]) {
+        final vault = MemoryVault(),
+            dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/v1'));
+        dio.httpClientAdapter = Adapter((request) async {
+          throw DioException(
+            requestOptions: request,
+            type: DioExceptionType.receiveTimeout,
+          );
+        });
+        final shop = Shop(
+          brand: {
+            'id': 'demo',
+            'apiBaseUrl': 'https://example.invalid',
+            'defaultLocale': 'ru',
+          },
+          vault: vault,
+          transport: dio,
+        );
+        await shop.saveTokens(
+          TokensResponse(
+            accessToken: 'a' * 64,
+            refreshToken: 'b' * 64,
+            expiresIn: 900,
+          ),
+        );
+        shop.customer = const CustomerProfile(
+          id: 'subject',
+          name: 'Synthetic',
+          phone: null,
+          locale: 'ru',
+        );
+        vault.values['food:demo:pending:subject'] =
+            'synthetic unresolved request';
+        await expectLater(
+          all ? shop.logoutAll() : shop.logout(),
+          throwsA(isA<SessionRevocationUnconfirmed>()),
+        );
+        expect(shop.customer, isNull);
+        expect(shop.accessToken, isNull);
+        expect(shop.tokens, isNull);
+        expect(vault.values.containsKey('food:demo:session'), false);
+        expect(vault.values.containsKey('food:demo:pending:subject'), true);
+        shop.dispose();
+      }
+    },
+  );
   test('cart bounds and durable brand namespace', () async {
     final vault = MemoryVault();
     final shop = Shop(
@@ -259,6 +308,193 @@ void main() {
       expect(shop.accessToken, isNull);
       expect(seen.length, 1);
       expect(seen.single.headers.containsKey('Authorization'), false);
+      shop.dispose();
+    },
+  );
+  test(
+    'repeat order warns about archived and incompatible options and uses current prices without placing an order',
+    () async {
+      const branch = PublicBranch(
+        id: 'b',
+        nameRu: 'Филиал',
+        nameKk: 'Филиал',
+        timeZone: 'Asia/Almaty',
+        acceptingOrders: true,
+        openNow: true,
+        allowCash: false,
+        preparationMinutes: 20,
+        minimumPickupMinor: 0,
+      );
+      const catalog = [
+        CatalogProduct(
+          id: 'archived',
+          branchId: 'b',
+          name: 'Старые опции',
+          description: '',
+          priceMinor: 100000,
+          currency: 'KZT',
+          version: 2,
+        ),
+        CatalogProduct(
+          id: 'incompatible',
+          branchId: 'b',
+          name: 'Новое сочетание',
+          description: '',
+          priceMinor: 100000,
+          currency: 'KZT',
+          version: 2,
+          configuration: ProductConfiguration(
+            variants: [
+              ProductVariant(
+                id: 'v',
+                nameRu: 'Вариант',
+                nameKk: 'Нұсқа',
+                priceMinor: 100000,
+                active: true,
+              ),
+            ],
+            groups: [
+              ProductGroup(
+                id: 'g',
+                nameRu: 'Добавки',
+                nameKk: 'Қоспалар',
+                minimum: 0,
+                maximum: 1,
+                choices: [
+                  ProductChoice(
+                    id: 'c',
+                    nameRu: 'Соус',
+                    nameKk: 'Тұздық',
+                    deltaMinor: 0,
+                    active: true,
+                  ),
+                ],
+              ),
+            ],
+            incompatiblePairs: [IncompatiblePair(firstId: 'v', secondId: 'c')],
+          ),
+        ),
+        CatalogProduct(
+          id: 'available',
+          branchId: 'b',
+          name: 'Новое меню',
+          description: '',
+          priceMinor: 300000,
+          currency: 'KZT',
+          version: 2,
+        ),
+      ];
+      final seen = <RequestOptions>[],
+          dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/v1'));
+      dio.httpClientAdapter = Adapter((options) async {
+        seen.add(options);
+        final data = options.path == '/branches'
+            ? {
+                'items': [branch.toJson()],
+              }
+            : {
+                'items': catalog.map((p) => p.toJson()).toList(),
+                'nextCursor': null,
+              };
+        return ResponseBody.fromString(
+          jsonEncode(data),
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      });
+      final shop = Shop(
+        brand: {
+          'id': 'demo',
+          'apiBaseUrl': 'https://example.invalid',
+          'defaultLocale': 'ru',
+        },
+        vault: MemoryVault(),
+        transport: dio,
+      );
+      final previous = CustomerOrder(
+        id: 'o',
+        branchId: 'b',
+        fulfilment: 'pickup',
+        status: 'completed',
+        version: 1,
+        preparationMinutes: null,
+        createdAt: DateTime.utc(2026),
+        items: const [
+          OrderItem(
+            id: 'i1',
+            productId: 'archived',
+            nameRu: 'Прежняя позиция',
+            nameKk: 'Бұрынғы тағам',
+            quantity: 1,
+            unitPriceMinor: 100000,
+            lineTotalMinor: 100000,
+            options: [
+              SelectedOption(
+                id: 'gone',
+                nameRu: 'Старая добавка',
+                nameKk: 'Ескі қоспа',
+                deltaMinor: 0,
+              ),
+            ],
+          ),
+          OrderItem(
+            id: 'i2',
+            productId: 'incompatible',
+            nameRu: 'Прежнее сочетание',
+            nameKk: 'Бұрынғы таңдау',
+            quantity: 1,
+            unitPriceMinor: 100000,
+            lineTotalMinor: 100000,
+            options: [
+              SelectedOption(
+                id: 'v',
+                nameRu: 'Вариант',
+                nameKk: 'Нұсқа',
+                deltaMinor: 0,
+              ),
+              SelectedOption(
+                id: 'c',
+                nameRu: 'Соус',
+                nameKk: 'Тұздық',
+                deltaMinor: 0,
+              ),
+            ],
+          ),
+          OrderItem(
+            id: 'i3',
+            productId: 'available',
+            nameRu: 'Доступная позиция',
+            nameKk: 'Қолжетімді тағам',
+            quantity: 2,
+            unitPriceMinor: 100000,
+            lineTotalMinor: 200000,
+          ),
+        ],
+        comment: '',
+        paymentMethod: 'mock',
+        paymentStatus: 'paid',
+        currency: 'KZT',
+        subtotalMinor: 400000,
+        discountMinor: 0,
+        deliveryFeeMinor: 0,
+        totalMinor: 400000,
+        address: null,
+        courierId: null,
+        courierAccepted: false,
+        pickupCode: null,
+        payments: const [],
+        events: const [],
+      );
+      await shop.repeatOrder(previous);
+      expect(shop.cart, {'available': 2});
+      expect(shop.estimatedItemsMinor, 600000);
+      expect(shop.notice, contains('Прежняя позиция'));
+      expect(shop.notice, contains('Прежнее сочетание'));
+      expect(shop.quote, isNull);
+      expect(shop.pendingKey, isNull);
+      expect(seen.map((r) => r.method).toSet(), {'GET'});
       shop.dispose();
     },
   );

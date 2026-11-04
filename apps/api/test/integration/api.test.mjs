@@ -1171,6 +1171,167 @@ test("PostgreSQL migrations, seed, public API and readiness lifecycle", async (t
           },
         );
         await flow.test(
+          "incompatible combinations are published, enforced and rechecked before order creation",
+          async () => {
+            const ids = Array.from({ length: 5 }, () => crypto.randomUUID()),
+              [v1, v2, g, c1, c2] = ids;
+            const dish = await db.orm.product.create({
+              data: {
+                branchId: branch.id,
+                nameRu: "Совместимость",
+                nameKk: "Үйлесімділік",
+                priceMinor: 100000,
+              },
+            });
+            const config = {
+              variants: [
+                {
+                  id: v1,
+                  nameRu: "Первый",
+                  nameKk: "Бірінші",
+                  priceMinor: 100000,
+                  active: true,
+                },
+                {
+                  id: v2,
+                  nameRu: "Второй",
+                  nameKk: "Екінші",
+                  priceMinor: 200000,
+                  active: true,
+                },
+              ],
+              groups: [
+                {
+                  id: g,
+                  nameRu: "Добавки",
+                  nameKk: "Қоспалар",
+                  minimum: 1,
+                  maximum: 2,
+                  choices: [
+                    {
+                      id: c1,
+                      nameRu: "Сыр",
+                      nameKk: "Ірімшік",
+                      deltaMinor: 10000,
+                      active: true,
+                    },
+                    {
+                      id: c2,
+                      nameRu: "Соус",
+                      nameKk: "Тұздық",
+                      deltaMinor: 20000,
+                      active: true,
+                    },
+                  ],
+                },
+              ],
+              incompatiblePairs: [
+                { firstId: v1, secondId: c1 },
+                { firstId: c1, secondId: c2 },
+              ],
+            };
+            const saved = await ok(
+              await request(
+                "/admin/products/" + dish.id + "/configuration",
+                "POST",
+                { expectedVersion: 1, configuration: config },
+                owner.headers,
+              ),
+              201,
+            );
+            const catalog = await (
+              await get("/catalog?branchId=" + branch.id + "&limit=100")
+            ).json();
+            assert.deepEqual(
+              catalog.items.find((value) => value.id === dish.id).configuration
+                .incompatiblePairs,
+              config.incompatiblePairs,
+            );
+            const subject = await db.orm.customer.create({
+                data: { phone: "+77000000028" },
+              }),
+              token = randomBytes(32).toString("hex");
+            await db.orm.authSession.create({
+              data: {
+                customerId: subject.id,
+                accessHash: digest(token),
+                familyId: crypto.randomUUID(),
+                expiresAt: new Date(Date.now() + 900000),
+              },
+            });
+            const auth = { authorization: "Bearer " + token };
+            const make = (variantId, choiceIds) => ({
+              ...input,
+              items: [
+                { productId: dish.id, quantity: 1, variantId, choiceIds },
+              ],
+            });
+            for (const body of [make(v1, [c1]), make(v2, [c1, c2])]) {
+              const response = await request(
+                "/checkout/quote",
+                "POST",
+                body,
+                auth,
+              );
+              assert.equal(response.status, 422);
+              assert.equal(
+                (await response.json()).code,
+                "INCOMPATIBLE_OPTIONS",
+              );
+            }
+            const allowed = await quote(make(v2, [c1]), auth);
+            assert.equal(allowed.totalMinor, 210000);
+            const beforeChange = await quote(make(v1, [c2]), auth);
+            assert.equal(
+              (
+                await request(
+                  "/admin/products/" + dish.id + "/configuration",
+                  "POST",
+                  {
+                    expectedVersion: saved.version,
+                    configuration: {
+                      ...config,
+                      incompatiblePairs: [
+                        ...config.incompatiblePairs,
+                        { firstId: c1, secondId: v1 },
+                      ],
+                    },
+                  },
+                  owner.headers,
+                )
+              ).status,
+              422,
+            );
+            await ok(
+              await request(
+                "/admin/products/" + dish.id + "/configuration",
+                "POST",
+                {
+                  expectedVersion: saved.version,
+                  configuration: {
+                    ...config,
+                    incompatiblePairs: [
+                      ...config.incompatiblePairs,
+                      { firstId: v1, secondId: c2 },
+                    ],
+                  },
+                },
+                owner.headers,
+              ),
+              201,
+            );
+            const denied = await create(beforeChange, auth);
+            assert.equal(denied.status, 422);
+            assert.equal((await denied.json()).code, "INCOMPATIBLE_OPTIONS");
+            assert.equal(
+              await db.orm.order.count({
+                where: { quoteId: beforeChange.quoteId },
+              }),
+              0,
+            );
+          },
+        );
+        await flow.test(
           "owner diagnostics distinguish fresh and stale workers; dead-letter retry is strict and audited",
           async () => {
             await db.orm.workerHeartbeat.upsert({
@@ -1592,7 +1753,69 @@ test("PostgreSQL migrations, seed, public API and readiness lifecycle", async (t
               ).status,
               409,
             );
-            order = await command(order, "prepare", {}, kitchen.headers);
+            const unrelatedManager = await db.orm.roleBinding.create({
+              data: {
+                staffId: kitchen.id,
+                role: "manager",
+                branchId: "00000000-0000-4000-8000-000000000001",
+              },
+            });
+            try {
+              const detail = await ok(
+                await request(
+                  "/admin/orders/" + order.id,
+                  "GET",
+                  undefined,
+                  kitchen.headers,
+                ),
+              );
+              const page = await ok(
+                await request(
+                  "/admin/orders?branchId=" + branch.id,
+                  "GET",
+                  undefined,
+                  kitchen.headers,
+                ),
+              );
+              const restricted = (value) => {
+                for (const key of [
+                  "contact",
+                  "address",
+                  "payments",
+                  "totalMinor",
+                  "paymentStatus",
+                ])
+                  assert.ok(
+                    !(key in value),
+                    "Unrelated branch role must not reveal " + key,
+                  );
+                assert.ok(
+                  value.items.every((item) => !("unitPriceMinor" in item)),
+                );
+              };
+              restricted(detail);
+              page.items.forEach(restricted);
+              assert.equal(
+                (
+                  await request(
+                    "/admin/orders/" + order.id + "/cancel",
+                    "POST",
+                    {
+                      expectedVersion: order.version,
+                      reason: "Synthetic unauthorized action",
+                    },
+                    kitchen.headers,
+                  )
+                ).status,
+                403,
+              );
+              order = await command(order, "prepare", {}, kitchen.headers);
+              restricted(order);
+            } finally {
+              await db.orm.roleBinding.delete({
+                where: { id: unrelatedManager.id },
+              });
+            }
             assert.equal(order.status, "preparing");
             assert.ok(!("contact" in order));
             assert.ok(!("address" in order));
@@ -2703,6 +2926,27 @@ test("PostgreSQL migrations, seed, public API and readiness lifecycle", async (t
             },
             ...(body ? { body: JSON.stringify(body) } : {}),
           });
+        await db.orm.idempotencyRecord.create({
+          data: {
+            actorId: customer.id,
+            scope: "privacy-fixture",
+            key: crypto.randomUUID(),
+            requestHash: digest("synthetic"),
+            response: {
+              address: { text: "Private demo address" },
+              comment: "Private demo note",
+            },
+          },
+        });
+        await db.orm.idempotencyRecord.create({
+          data: {
+            actorId: other.id,
+            scope: "privacy-fixture",
+            key: crypto.randomUUID(),
+            requestHash: digest("synthetic"),
+            response: { retained: true },
+          },
+        });
         let response = await request("/me", "PATCH", {
           name: "Новый профиль",
           locale: "kk",
@@ -2846,6 +3090,18 @@ test("PostgreSQL migrations, seed, public API and readiness lifecycle", async (t
               where: { entityId: customer.id, action: "customer.blocked" },
             })
           ).every((log) => log.details === null),
+        );
+        assert.equal(
+          await db.orm.idempotencyRecord.count({
+            where: { actorId: customer.id },
+          }),
+          0,
+        );
+        assert.equal(
+          await db.orm.idempotencyRecord.count({
+            where: { actorId: other.id },
+          }),
+          1,
         );
         assert.equal(erased.phone, null);
         assert.equal(erased.name, null);
