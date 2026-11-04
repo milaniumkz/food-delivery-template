@@ -11,3 +11,5 @@
 Не готово к production: APK/Web artifacts заблокированы storage.googleapis.com403; iOS archive/devices/signing не проверены; нет утверждённых Kaspi/SMS/push/hosting/legal/offsite конфигураций. В acceptance.md отдельно перечислен оставшийся программный объём SPEC. NODE_ENV=production и реальный Kaspi fail-closed. Никаких реальных платежей, deployment или store publication. Секреты только ignored local files; limited secret scan выполнен. Remote CI/PR должны быть подтверждены отдельно.
 
 Container smoke: fresh non-root SMS/media volumes, actual OTP, staff MFA, native Sharp WebP, mock payment/refund, isolated temporary DB and cleanup. Fixed SMS mountpoint ownership in image and explicit Compose SMS_DIRECTORY.
+
+Mobile session hardening: no API/OTP forwarding before brand verification, identity switch clears previous order/history before the new profile, unreadable pending storage blocks checkout and every POST retry persists the original key/payload first. Flutter analyze +19/19 and full E2E4/4 passed.

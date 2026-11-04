@@ -31,6 +31,8 @@ String money(int minor) =>
 
 class SessionRevocationUnconfirmed implements Exception {}
 
+class BackendNotVerified implements Exception {}
+
 class Selection {
   final String? variantId;
   final List<String> choiceIds;
@@ -70,6 +72,7 @@ class Shop extends ChangeNotifier {
   String? historyCursor;
   bool mock = false;
   String? pendingKey, pendingQuote, pendingMethod, pendingCustomer;
+  String? pendingLoadedFor;
   Shop({required this.brand, required this.vault, Dio? transport})
     : dio =
           transport ??
@@ -88,6 +91,15 @@ class Shop extends ChangeNotifier {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
+          if (!connected && options.path != '/bootstrap') {
+            handler.reject(
+              DioException(
+                requestOptions: options,
+                error: BackendNotVerified(),
+              ),
+            );
+            return;
+          }
           if (connected && accessToken != null && protected(options.path)) {
             options.headers['Authorization'] = 'Bearer $accessToken';
           }
@@ -151,6 +163,12 @@ class Shop extends ChangeNotifier {
       );
     }
     if (e is DioException) {
+      if (e.error is BackendNotVerified) {
+        return text(
+          'Сервер бренда не подтверждён. Обновите подключение перед входом.',
+          'Бренд сервері расталмады. Кіру алдында қосылымды жаңартыңыз.',
+        );
+      }
       final code = e.response?.data is Map ? e.response?.data['code'] : null;
       if (e.response?.statusCode == 401) {
         return text('Войдите заново', 'Қайта кіріңіз');
@@ -303,13 +321,17 @@ class Shop extends ChangeNotifier {
     if (pendingKey != null) await recoverOrder();
   });
   Future<void> readPending() async {
+    pendingLoadedFor = null;
     pendingKey = null;
     pendingQuote = null;
     pendingMethod = null;
     pendingCustomer = null;
     if (customer == null) return;
     final saved = await vault.read('$namespace:pending:${customer!.id}');
-    if (saved == null) return;
+    if (saved == null) {
+      pendingLoadedFor = customer!.id;
+      return;
+    }
     final data = jsonDecode(saved);
     if (data['customer'] != customer!.id) {
       throw StateError('Pending account mismatch');
@@ -318,6 +340,15 @@ class Shop extends ChangeNotifier {
     pendingQuote = data['quote'];
     pendingMethod = data['method'];
     pendingCustomer = data['customer'];
+    if (pendingKey is! String ||
+        pendingKey!.isEmpty ||
+        pendingQuote is! String ||
+        pendingQuote!.isEmpty ||
+        !['mock', 'cash'].contains(pendingMethod)) {
+      pendingKey = null;
+      throw StateError('Invalid pending record');
+    }
+    pendingLoadedFor = customer!.id;
   }
 
   Future<void> refreshSession() async {
@@ -337,7 +368,8 @@ class Shop extends ChangeNotifier {
     accessToken = value.accessToken;
   }
 
-  Future<void> clearSession() async {
+  void resetIdentity() {
+    pendingLoadedFor = null;
     orderReadSequence++;
     tokens = null;
     accessToken = null;
@@ -350,15 +382,19 @@ class Shop extends ChangeNotifier {
     pendingCustomer = null;
     history = [];
     historyCursor = null;
+  }
+
+  Future<void> clearSession() async {
+    resetIdentity();
     await vault.write('$namespace:session', null);
   }
 
   Future<void> login(String challengeId, String code) async {
-    await saveTokens(
-      await api.verifyOtp(
-        OtpVerifyRequest(challengeId: challengeId, code: code),
-      ),
+    final nextTokens = await api.verifyOtp(
+      OtpVerifyRequest(challengeId: challengeId, code: code),
     );
+    resetIdentity();
+    await saveTokens(nextTokens);
     customer = await api.me();
     final preferred = await vault.read("$namespace:locale");
     if (preferred != null && enabledLocales.contains(preferred)) {
@@ -637,6 +673,10 @@ class Shop extends ChangeNotifier {
   }
 
   Future<void> place(String method) async {
+    if (customer == null) throw StateError('Login required');
+    if (pendingKey == null && pendingLoadedFor != customer!.id) {
+      await readPending();
+    }
     if (pendingKey != null) {
       await recoverOrder();
       return;
@@ -649,6 +689,16 @@ class Shop extends ChangeNotifier {
     pendingQuote = quote!.quoteId;
     pendingMethod = method;
     pendingCustomer = customer!.id;
+    await submitPending();
+  }
+
+  Future<void> submitPending() async {
+    if (pendingCustomer != customer?.id ||
+        pendingKey == null ||
+        pendingQuote == null ||
+        pendingMethod == null) {
+      throw StateError('Invalid pending checkout');
+    }
     await vault.write(
       '$namespace:pending:$pendingCustomer',
       jsonEncode({
@@ -658,11 +708,6 @@ class Shop extends ChangeNotifier {
         'customer': pendingCustomer,
       }),
     );
-    await submitPending();
-  }
-
-  Future<void> submitPending() async {
-    if (pendingCustomer != customer?.id) throw StateError('Wrong account');
     try {
       await adoptOrder(
         await api.createOrder(

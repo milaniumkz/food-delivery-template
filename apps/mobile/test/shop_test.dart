@@ -20,6 +20,25 @@ class MemoryVault implements Vault {
   }
 }
 
+class UnavailableVault extends MemoryVault {
+  bool failRead = false, failWrite = false;
+  @override
+  Future<String?> read(String key) async {
+    if (failRead && key.contains(':pending:')) {
+      throw StateError('Storage unavailable');
+    }
+    return super.read(key);
+  }
+
+  @override
+  Future<void> write(String key, String? value) async {
+    if (failWrite && key.contains(':pending:')) {
+      throw StateError('Storage unavailable');
+    }
+    await super.write(key, value);
+  }
+}
+
 class Adapter implements HttpClientAdapter {
   final Future<ResponseBody> Function(RequestOptions) respond;
   Adapter(this.respond);
@@ -220,6 +239,7 @@ void main() {
         vault: vault,
         transport: dio,
       );
+      shop.connected = true;
       shop.customer = const CustomerProfile(
         id: 'customer',
         name: null,
@@ -250,6 +270,170 @@ void main() {
       expect(seen.map((r) => jsonEncode(r.data)).toSet(), {
         jsonEncode({'quoteId': 'quote', 'paymentMethod': 'mock'}),
       });
+      shop.dispose();
+    },
+  );
+  test(
+    'checkout fails closed on unreadable storage and persists original payload before every POST retry',
+    () async {
+      final vault = UnavailableVault(), seen = <RequestOptions>[];
+      final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/v1'));
+      dio.httpClientAdapter = Adapter((request) async {
+        seen.add(request);
+        throw DioException(
+          requestOptions: request,
+          type: DioExceptionType.receiveTimeout,
+        );
+      });
+      final shop = Shop(
+        brand: {
+          'id': 'demo',
+          'apiBaseUrl': 'https://example.invalid',
+          'defaultLocale': 'ru',
+        },
+        vault: vault,
+        transport: dio,
+      );
+      shop.connected = true;
+      shop.customer = const CustomerProfile(
+        id: 'subject',
+        name: null,
+        phone: null,
+        locale: 'ru',
+      );
+      shop.quote = QuoteResponse(
+        quoteId: 'original-quote',
+        preparationMinutes: 20,
+        promotionId: null,
+        expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+        pricingVersion: '1',
+        signature: 's',
+        items: [],
+        subtotalMinor: 100,
+        discountMinor: 0,
+        deliveryFeeMinor: 0,
+        totalMinor: 100,
+        currency: 'KZT',
+        zoneId: null,
+      );
+      vault.failRead = true;
+      await expectLater(shop.place('mock'), throwsStateError);
+      expect(shop.pendingKey, isNull);
+      expect(seen, isEmpty);
+      vault.failRead = false;
+      vault.failWrite = true;
+      await expectLater(shop.place('mock'), throwsStateError);
+      final originalKey = shop.pendingKey;
+      expect(originalKey, isNotNull);
+      expect(seen, isEmpty);
+      await expectLater(shop.submitPending(), throwsStateError);
+      expect(seen, isEmpty);
+      vault.failWrite = false;
+      await expectLater(shop.submitPending(), throwsA(isA<DioException>()));
+      expect(seen.single.headers['Idempotency-Key'], originalKey);
+      final stored = jsonDecode(vault.values['food:demo:pending:subject']!);
+      expect(stored['key'], originalKey);
+      expect(stored['quote'], 'original-quote');
+      expect(seen.single.data, {
+        'quoteId': 'original-quote',
+        'paymentMethod': 'mock',
+      });
+      shop.dispose();
+    },
+  );
+  test(
+    'login to another account clears previous private state before fetching the new identity',
+    () async {
+      final vault = MemoryVault(),
+          dio = Dio(BaseOptions(baseUrl: 'https://example.invalid/v1'));
+      late Shop shop;
+      dio.httpClientAdapter = Adapter((request) async {
+        if (request.path == '/auth/otp/verify') {
+          return ResponseBody.fromString(
+            jsonEncode({
+              'accessToken': 'new-access',
+              'refreshToken': 'new-refresh',
+              'expiresIn': 900,
+            }),
+            200,
+            headers: {
+              Headers.contentTypeHeader: ['application/json'],
+            },
+          );
+        }
+        expect(request.path, '/me');
+        expect(shop.customer, isNull);
+        expect(shop.history, isEmpty);
+        expect(shop.currentOrder, isNull);
+        expect(shop.pendingKey, isNull);
+        expect(shop.historyCursor, isNull);
+        return ResponseBody.fromString(
+          jsonEncode({
+            'id': 'new-customer',
+            'name': null,
+            'phone': null,
+            'locale': 'ru',
+          }),
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      });
+      shop = Shop(
+        brand: {
+          'id': 'demo',
+          'apiBaseUrl': 'https://example.invalid',
+          'defaultLocale': 'ru',
+        },
+        vault: vault,
+        transport: dio,
+      );
+      shop.connected = true;
+      shop.customer = const CustomerProfile(
+        id: 'old-customer',
+        name: 'Private previous identity',
+        phone: null,
+        locale: 'ru',
+      );
+      final previous = CustomerOrder.fromJson({
+        'id': 'private-old-order',
+        'branchId': 'old-branch',
+        'fulfilment': 'pickup',
+        'status': 'completed',
+        'version': 1,
+        'preparationMinutes': null,
+        'createdAt': '2026-11-04T00:00:00Z',
+        'items': [],
+        'comment': 'Previous private note',
+        'paymentMethod': 'mock',
+        'paymentStatus': 'paid',
+        'currency': 'KZT',
+        'subtotalMinor': 100,
+        'discountMinor': 0,
+        'deliveryFeeMinor': 0,
+        'totalMinor': 100,
+        'address': null,
+        'courierId': null,
+        'courierAccepted': false,
+        'pickupCode': null,
+        'payments': [],
+        'events': [],
+      });
+      shop.currentOrder = previous;
+      shop.history = [previous];
+      shop.pendingKey = 'old-key';
+      shop.pendingCustomer = 'old-customer';
+      shop.historyCursor = 'old-cursor';
+      vault.values['food:demo:pending:old-customer'] =
+          'preserve unresolved operation';
+      await shop.login('challenge', '123456');
+      expect(shop.customer!.id, 'new-customer');
+      expect(shop.accessToken, 'new-access');
+      expect(
+        vault.values['food:demo:pending:old-customer'],
+        'preserve unresolved operation',
+      );
       shop.dispose();
     },
   );
@@ -305,6 +489,16 @@ void main() {
       );
       await shop.initialize();
       expect(shop.connected, false);
+      await expectLater(
+        shop.api.requestOtp(const OtpRequest(phone: '+77010000000')),
+        throwsA(
+          isA<DioException>().having(
+            (e) => e.error,
+            'guard',
+            isA<BackendNotVerified>(),
+          ),
+        ),
+      );
       expect(shop.accessToken, isNull);
       expect(seen.length, 1);
       expect(seen.single.headers.containsKey('Authorization'), false);
@@ -413,6 +607,7 @@ void main() {
         vault: MemoryVault(),
         transport: dio,
       );
+      shop.connected = true;
       final previous = CustomerOrder(
         id: 'o',
         branchId: 'b',
@@ -535,6 +730,7 @@ void main() {
       vault: MemoryVault(),
       transport: dio,
     );
+    shop.connected = true;
     shop.currentOrder = order(1, 'pending');
     final polling = shop.loadOrder('o');
     shop.observeOrder(order(2, 'paid'));
